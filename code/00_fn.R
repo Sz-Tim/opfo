@@ -88,7 +88,7 @@ load_ant_data <- function(structured=TRUE, public=TRUE,
 #' @return sf object with site squares and all site-level environmental data
 
 agg_str_site_data <- function(gis.dir="~/Documents/unil/opfo_main/2_gis/data/VD_21781/", 
-                              clim=FALSE, topo=FALSE, 
+                              clim=FALSE, topo=FALSE, npp=FALSE,
                               opfo.dir="~/Documents/unil/opfo_main/1_opfo/data/",
                               goal="read") {
   library(tidyverse); library(sf)
@@ -132,6 +132,11 @@ agg_str_site_data <- function(gis.dir="~/Documents/unil/opfo_main/2_gis/data/VD_
       site.sf <- site.sf %>%
         mutate(el=raster::extract(dem, ., fun=mean),
                slope=raster::extract(slope, ., fun=mean))
+    }
+    if(npp) {
+      npp <- raster::raster(paste0(gis.dir, "MODIS_2010-2019_VD_21781.tif"))
+      site.sf <- site.sf %>%
+        mutate(npp=raster::extract(npp, ., fun=mean, na.rm=T))
     }
     st_write(site.sf, paste0(gis.dir, "site_env_sf.shp"), delete_layer=TRUE)
     write_csv(data.frame(full=names(st_set_geometry(site.sf, NULL))), 
