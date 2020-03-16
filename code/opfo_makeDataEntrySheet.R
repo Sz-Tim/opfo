@@ -5,7 +5,7 @@
 library(tidyverse)
 
 # load plot distribution summaries
-site_i <- readxl::read_xlsx("site_summaries_25.xlsx", 1) %>%
+site_i <- readxl::read_xlsx("data/site_summaries_25.xlsx", 1) %>%
   mutate(BDM_id=str_pad(BDM_id, 2, side="left", pad="0"))
 lc_i <- readxl::read_xlsx("landcover_id.xlsx", 1) %>%
   mutate(lc_id=str_pad(LC_ID, 2, side="left", pad="0"))
