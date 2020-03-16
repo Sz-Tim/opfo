@@ -1,0 +1,130 @@
+<Layout name="bdm_05" printResolution="300" units="mm" worldFileMap="{cf90092c-e4ba-4b7e-996d-63a1345573e0}">
+ <Snapper snapToGrid="0" snapToItems="1" tolerance="5" snapToGuides="1"/>
+ <Grid offsetUnits="mm" resolution="10" resUnits="mm" offsetY="0" offsetX="0"/>
+ <PageCollection>
+  <symbol name="" alpha="1" type="fill" force_rhr="0" clip_to_extent="1">
+   <layer enabled="1" pass="0" locked="0" class="SimpleFill">
+    <prop v="3x:0,0,0,0,0,0" k="border_width_map_unit_scale"/>
+    <prop v="255,255,255,255" k="color"/>
+    <prop v="miter" k="joinstyle"/>
+    <prop v="0,0" k="offset"/>
+    <prop v="3x:0,0,0,0,0,0" k="offset_map_unit_scale"/>
+    <prop v="MM" k="offset_unit"/>
+    <prop v="35,35,35,255" k="outline_color"/>
+    <prop v="no" k="outline_style"/>
+    <prop v="0.26" k="outline_width"/>
+    <prop v="MM" k="outline_width_unit"/>
+    <prop v="solid" k="style"/>
+    <data_defined_properties>
+     <Option type="Map">
+      <Option name="name" type="QString" value=""/>
+      <Option name="properties"/>
+      <Option name="type" type="QString" value="collection"/>
+     </Option>
+    </data_defined_properties>
+   </layer>
+  </symbol>
+  <LayoutItem itemRotation="0" frameJoinStyle="miter" outlineWidthM="0.3,mm" uuid="{ea672d1d-a0cb-418e-b454-aabc7e7be174}" groupUuid="" blendMode="0" positionLock="false" visibility="1" position="0,0,mm" referencePoint="0" type="65638" excludeFromExports="0" id="" size="210,297,mm" zValue="0" background="true" templateUuid="{ea672d1d-a0cb-418e-b454-aabc7e7be174}" frame="false" opacity="1" positionOnPage="0,0,mm">
+   <FrameColor red="0" green="0" alpha="255" blue="0"/>
+   <BackgroundColor red="255" green="255" alpha="255" blue="255"/>
+   <LayoutObject>
+    <dataDefinedProperties>
+     <Option type="Map">
+      <Option name="name" type="QString" value=""/>
+      <Option name="properties"/>
+      <Option name="type" type="QString" value="collection"/>
+     </Option>
+    </dataDefinedProperties>
+    <customproperties/>
+   </LayoutObject>
+  </LayoutItem>
+  <GuideCollection visible="1"/>
+ </PageCollection>
+ <LayoutItem followPreset="false" itemRotation="0" frameJoinStyle="miter" outlineWidthM="1.4,mm" keepLayerSet="true" uuid="{8fde7a36-bdd9-4837-8fa0-a07d042b7d70}" groupUuid="" blendMode="0" labelMargin="0,mm" positionLock="true" visibility="1" drawCanvasItems="true" position="59.4644,220.679,mm" referencePoint="0" followPresetName="" type="65639" mapFlags="0" excludeFromExports="0" id="" size="141.137,66.8626,mm" zValue="3" background="true" mapRotation="0" templateUuid="{8fde7a36-bdd9-4837-8fa0-a07d042b7d70}" frame="true" opacity="1" positionOnPage="59.4644,220.679,mm">
+  <FrameColor red="0" green="0" alpha="255" blue="0"/>
+  <BackgroundColor red="255" green="255" alpha="255" blue="255"/>
+  <LayoutObject>
+   <dataDefinedProperties>
+    <Option type="Map">
+     <Option name="name" type="QString" value=""/>
+     <Option name="properties"/>
+     <Option name="type" type="QString" value="collection"/>
+    </Option>
+   </dataDefinedProperties>
+   <customproperties/>
+  </LayoutObject>
+  <Extent ymax="201024.94559719320386648" xmax="629263.91361052682623267" xmin="449736.1666843801504001" ymin="115974.94543468311894685"/>
+  <LayerSet>
+   <Layer name="BDMplus" provider="ogr" source="/Users/tsz/Documents/UNIL/gis/data/Fourmis_data_shp/BDMplus.shp">BDMplus_9a46a0be_dd4c_4816_aabc_8dec64da55e6</Layer>
+   <Layer name="roads" provider="wms" source="crs=EPSG:3857&amp;format&amp;type=xyz&amp;url=http://mt0.google.com/vt/lyrs%3Dy%26hl%3Den%26x%3D%7Bx%7D%26y%3D%7By%7D%26z%3D%7Bz%7D&amp;zmax=18&amp;zmin=0">roads_660c186b_9dfd_43d4_8d0b_0f0af951e23b</Layer>
+  </LayerSet>
+  <ComposerMapOverview name="Overview 1" uuid="{3e4c28fd-554c-4802-8332-8a55e751ce05}" show="1" position="3" blendMode="0" inverted="0" frameMap="{06caf9f6-6f28-43df-ab86-342503b48942}" centered="0">
+   <symbol name="" alpha="0.768627" type="fill" force_rhr="0" clip_to_extent="1">
+    <layer enabled="1" pass="0" locked="0" class="SimpleFill">
+     <prop v="3x:0,0,0,0,0,0" k="border_width_map_unit_scale"/>
+     <prop v="255,255,0,255" k="color"/>
+     <prop v="bevel" k="joinstyle"/>
+     <prop v="0,0" k="offset"/>
+     <prop v="3x:0,0,0,0,0,0" k="offset_map_unit_scale"/>
+     <prop v="MM" k="offset_unit"/>
+     <prop v="255,255,0,255" k="outline_color"/>
+     <prop v="solid" k="outline_style"/>
+     <prop v="4" k="outline_width"/>
+     <prop v="MM" k="outline_width_unit"/>
+     <prop v="solid" k="style"/>
+     <data_defined_properties>
+      <Option type="Map">
+       <Option name="name" type="QString" value=""/>
+       <Option name="properties"/>
+       <Option name="type" type="QString" value="collection"/>
+      </Option>
+     </data_defined_properties>
+    </layer>
+   </symbol>
+  </ComposerMapOverview>
+  <AtlasMap scalingMode="2" atlasDriven="0" margin="0.10000000000000001"/>
+  <labelBlockingItems/>
+ </LayoutItem>
+ <LayoutItem itemRotation="0" frameJoinStyle="miter" outlineWidthM="0.3,mm" uuid="{376f1b0e-470c-441b-a0e7-da7222917d03}" groupUuid="" blendMode="0" positionLock="true" labelText="05: BDM 569134" visibility="1" marginX="0" position="105.286,19.2874,mm" halign="4" referencePoint="1" marginY="0" type="65641" excludeFromExports="0" id="" size="150.75,16.3512,mm" zValue="2" background="false" templateUuid="{376f1b0e-470c-441b-a0e7-da7222917d03}" frame="false" opacity="1" valign="128" positionOnPage="105.286,19.2874,mm" htmlState="0">
+  <FrameColor red="0" green="0" alpha="255" blue="0"/>
+  <BackgroundColor red="255" green="255" alpha="255" blue="255"/>
+  <LayoutObject>
+   <dataDefinedProperties>
+    <Option type="Map">
+     <Option name="name" type="QString" value=""/>
+     <Option name="properties"/>
+     <Option name="type" type="QString" value="collection"/>
+    </Option>
+   </dataDefinedProperties>
+   <customproperties/>
+  </LayoutObject>
+  <LabelFont style="Bold" description="Al Bayan,36,-1,5,50,0,0,0,0,0,Bold"/>
+  <FontColor red="255" green="255" blue="255"/>
+ </LayoutItem>
+ <LayoutItem followPreset="false" itemRotation="0" frameJoinStyle="miter" outlineWidthM="0.3,mm" keepLayerSet="false" uuid="{06caf9f6-6f28-43df-ab86-342503b48942}" groupUuid="" blendMode="0" labelMargin="0,mm" positionLock="false" visibility="1" drawCanvasItems="true" position="9.97024,10.369,mm" referencePoint="0" followPresetName="" type="65639" mapFlags="0" excludeFromExports="0" id="" size="190.631,277.173,mm" zValue="1" background="true" mapRotation="0" templateUuid="{06caf9f6-6f28-43df-ab86-342503b48942}" frame="false" opacity="1" positionOnPage="9.97024,10.369,mm">
+  <FrameColor red="0" green="0" alpha="255" blue="0"/>
+  <BackgroundColor red="255" green="255" alpha="255" blue="255"/>
+  <LayoutObject>
+   <dataDefinedProperties>
+    <Option type="Map">
+     <Option name="name" type="QString" value=""/>
+     <Option name="properties"/>
+     <Option name="type" type="QString" value="collection"/>
+    </Option>
+   </dataDefinedProperties>
+   <customproperties/>
+  </LayoutObject>
+  <Extent ymax="135190.42415957016055472" xmax="570073.28914004494436085" xmin="568957.12425264529883862" ymin="133567.54843416667426936"/>
+  <LayerSet/>
+  <AtlasMap scalingMode="2" atlasDriven="0" margin="0.10000000000000001"/>
+  <labelBlockingItems/>
+ </LayoutItem>
+ <customproperties>
+  <property value="png" key="atlasRasterFormat"/>
+  <property value="0" key="forceVector"/>
+  <property value="0" key="pdfDisableRasterTiles"/>
+  <property value="1" key="pdfIncludeMetadata"/>
+  <property value="0" key="pdfTextFormat"/>
+ </customproperties>
+ <Atlas enabled="0" filenamePattern="'output_'||@atlas_featurenumber" sortFeatures="0" filterFeatures="0" coverageLayer="" pageNameExpression="" hideCoverage="0"/>
+</Layout>
