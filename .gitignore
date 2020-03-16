@@ -3,6 +3,10 @@
 .Rapp.history
 .DS_Store
 
+eda/
+media/
+admin/*meetingNotes.txt
+
 # Session Data files
 .RData
 
