@@ -8,11 +8,19 @@
 #' @return dataframe with species names fully standardized
 
 clean_species_names <- function(ant.df) {
-  ant.df <- ant.df %>% filter(!is.na(SPECIESID))
+  ant.df <- ant.df %>% filter(!is.na(SPECIESID)) %>%
+    filter(SPECIESID != "Espèce exotique") %>%
+    filter(SPECIESID != "Camp_herc/lign") %>%
+    filter(SPECIESID != "Lasi_emar/brun") %>%
+    filter(SPECIESID != "Lasi_nige/plat") %>%
+    # filter(SPECIESID != "Tapi_erra") %>%
+    filter(SPECIESID != "Tapi_erra/nige_gr") %>%
+    filter(SPECIESID != "Tapi_nige_gr")
   ant.df$SPECIESID[ant.df$SPECIESID=="Form Copt"] <- "Form_copt"
   ant.df$SPECIESID[ant.df$SPECIESID=="Form_lugubris/paralugubris"] <- "Form_lugu/para"
   ant.df$SPECIESID[ant.df$SPECIESID=="Form_lugu/para/prat"] <- "Form_lugu/para"
   ant.df$SPECIESID[ant.df$SPECIESID=="Lasi_alie gr"] <- "Lasi_alie"
+  ant.df$SPECIESID[ant.df$SPECIESID=="LasI_para"] <- "Lasi_para"
   ant.df$SPECIESID[ant.df$SPECIESID=="Temn_nyla gr"] <- "Temn_nyla"
   ant.df$SPECIESID[ant.df$SPECIESID=="Temn_tube gr"] <- "Temn_tube"
   ant.df$SPECIESID[ant.df$SPECIESID=="Temn_unif gr"] <- "Temn_unif"
