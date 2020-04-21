@@ -2,10 +2,11 @@
 # Tim Szewczyk
 
 #--- libraries and options
-pkgs <- c("tidyverse", "ggspatial", "sf", "viridis", "vegan", "iNEXT", "betapart")
+pkgs <- c("googlesheets", "tidyverse", "ggspatial", "sf", "viridis",
+          "vegan", "iNEXT", "betapart")
 suppressMessages(invisible(lapply(pkgs, library, character.only=T)))
 theme_set(theme_bw() + theme(panel.grid.minor=element_blank())); 
-walk(paste0("code/", c("lc_cols", "00_opfo_fn"), ".R"), source)
+walk(paste0("code/", c("lc_cols", "00_fn"), ".R"), source)
 fonts <- theme(axis.text=element_text(size=14),
                axis.title=element_text(size=16),
                legend.text=element_text(size=12),
@@ -19,14 +20,31 @@ fonts <- theme(axis.text=element_text(size=14),
 VD_raw <- st_read("../2_gis/data/VD_21781/Vaud_boundaries.shp") %>%
   filter(!grepl("Lac ", NAME)) 
 VD <- st_union(VD_raw)
+VD_ext <- raster::extent(matrix(st_bbox(VD), ncol=2))
+# Ants
+ant <- load_ant_data(clean_spp=T)
+tax_i <- gs_read(ss=gs_title("Scientific Ant Inventory VD"), ws="Species") %>%
+  select(SPECIESID, GENRE, ESPECE) %>%
+  bind_rows(c(SPECIESID="Tetr_semi", GENRE="Tetramorium", ESPECE="semilaeve"),
+            c(SPECIESID="Plag_pall", GENRE="Plagiolepis", ESPECE="pallescens"),
+            c(SPECIESID="Myrm_curv", GENRE="Myrmica", ESPECE="curvithorax"),
+            c(SPECIESID="Form_lugu/para", GENRE="Formica", ESPECE="(para)lugubris"))
 # Topography
 dem <- raster::raster("../2_gis/data/VD_21781/dem_VD_21781.tif") %>%
   raster::mask(., st_zm(VD_raw))
 dem_bin <- table(dem@data@values %/% 100 * 100)
 slope <- raster::raster("../2_gis/data/VD_21781/slope_VD_21781.tif") %>%
   raster::mask(., st_zm(VD_raw))
-# Ants
-ant <- load_ant_data(clean_spp=T)
+grd_W <- raster::raster(ext=VD_ext, crs=st_crs(VD), resolution=1000) %>%
+  raster::rasterize(VD_ext, .) %>% 
+  raster::rasterToPolygons(., n=4)
+grd_W@data$layer <- 1:raster::ncell(grd_W)
+grd_W.sf <- st_as_sf(grd_W) %>% st_set_crs(st_crs(VD)) %>% rename(id=layer) %>%
+  mutate(inbd=c(st_intersects(., VD, sparse=F)))
+grid.W <- st_join(ant$pub, grd_W.sf) %>% st_set_geometry(NULL) %>%
+  group_by(id) %>%
+  summarise(nSp=n_distinct(SPECIESID), nTube=n()) %>%
+  full_join(filter(grd_W.sf, inbd), ., by="id") 
 # Plots and sites
 plot.i <- read_csv("data/opfo_envDataProcessed.csv") %>%
   select(BDM, BDM_id, Categorie, Plot_id, TypeOfOpen, SoilTemp, 
@@ -35,9 +53,10 @@ plot.sf <- st_read("../2_gis/data/opfo/opfo_soil_25per.shp") %>%
   mutate(Plot_id=str_replace(str_replace(plot_id, "_", ""), "_", ""),
          mnt25=raster::extract(dem, .)) %>%
   select(Plot_id, mnt25) %>% 
-  left_join(., select(plot.i, Plot_id, BDM), by="Plot_id") %>%
+  left_join(., select(plot.i, Plot_id, BDM, Categorie, TypeOfOpen), 
+            by="Plot_id") %>%
   left_join(., ant$str %>% st_set_geometry(NULL) %>%
-              select(c(3, 23:25, 29:47, 49:63)) %>% 
+              select(c(3, 25, 29:47, 49:63)) %>% 
               group_by(Plot_id) %>% filter(row_number()==1), by="Plot_id") %>%
   filter(!is.na(mnt25))
 site.sf <- full_join(agg_str_site_data(), 
@@ -70,7 +89,7 @@ col_mtn <- c(Low="#666666", Mtn="#009E73")
 ##
 
 # Map of structured samples
-pdf("eda/map_ants_BDM.pdf", height=7, width=7)
+pdf("eda/map_ants_BDM_region.pdf", height=7, width=7)
 par(mar=c(0.5, 0.5, 0, 0))
 raster::plot(dem, legend=F, axes=F, box=F,
              col=colorRampPalette(c("gray60", "white"))(255))
@@ -79,6 +98,16 @@ raster::scalebar(d=10000, xy=c(570000, 162000), below="km",
 plot(VD, add=TRUE, lwd=0.5)
 plot(select(site.sf, region), add=TRUE, col=col_region[site.sf$region])
 legend(569000, 180000, legend=c("Alps", "Jura", "Low"), fill=col_region, bty="n")
+dev.off()
+
+pdf("eda/map_ants_BDM.pdf", height=7, width=7)
+par(mar=c(0.5, 0.5, 0, 0))
+raster::plot(dem, legend=F, axes=F, box=F,
+             col=colorRampPalette(c("gray60", "white"))(255))
+raster::scalebar(d=10000, xy=c(570000, 162000), below="km", 
+                 label=c(0, 5, 10), type="bar")
+plot(VD, add=TRUE, lwd=0.5)
+plot(select(site.sf, region), add=TRUE, col="#56B4E9")
 dev.off()
 
 # Map of public samples
@@ -92,6 +121,42 @@ plot(VD, add=TRUE, lwd=0.5)
 plot(select(ant$pub, TubeNo), add=TRUE, col=rgb(1,0,0,0.5), cex=0.75)
 dev.off()
 
+pdf("eda/map_ants_public_grid.pdf", height=7, width=7)
+par(mar=c(0.5, 0.5, 0, 0))
+raster::plot(dem, legend=F, axes=F, box=F,
+             col=colorRampPalette(c("gray60", "white"))(255))
+raster::scalebar(d=10000, xy=c(570000, 162000), below="km", 
+                 label=c(0, 5, 10), type="bar")
+plot(VD, add=TRUE, lwd=0.5)
+plot(filter(grd_W.sf, id %in% grid.W$id & inbd), add=TRUE, 
+     col=rgb(181,222,252,maxColorValue=256))
+dev.off()
+
+ggplot(grid.W, aes(fill=nTube)) + geom_sf(colour="gray70") + 
+  scale_fill_viridis("nTubes", na.value="gray80") +
+  theme(panel.grid=element_blank(), axis.text=element_blank(),
+        panel.border=element_blank(), axis.ticks=element_blank(),
+        legend.position=c(0.85, 0.6))
+ggsave("eda/map_ants_public_siteTubes.pdf", height=7, width=7)
+
+ggplot(grid.W, aes(fill=!is.na(nTube))) + geom_sf(colour="gray70") + 
+  scale_fill_manual(values=c("gray80", "#016c59"), guide=F) +
+  theme(panel.grid=element_blank(), axis.text=element_blank(),
+        panel.border=element_blank(), axis.ticks=element_blank())
+ggsave("eda/map_ants_public_n1+.pdf", height=7, width=7)
+
+ggplot(grid.W, aes(fill=!is.na(nTube) & nTube>1)) + geom_sf(colour="gray70") + 
+  scale_fill_manual(values=c("gray80", "#016c59"), guide=F) +
+  theme(panel.grid=element_blank(), axis.text=element_blank(),
+        panel.border=element_blank(), axis.ticks=element_blank())
+ggsave("eda/map_ants_public_n2+.pdf", height=7, width=7)
+
+ggplot(grid.W, aes(fill=!is.na(nTube) & nTube>9)) + geom_sf(colour="gray70") + 
+  scale_fill_manual(values=c("gray80", "#016c59"), guide=F) +
+  theme(panel.grid=element_blank(), axis.text=element_blank(),
+        panel.border=element_blank(), axis.ticks=element_blank())
+ggsave("eda/map_ants_public_n10+.pdf", height=7, width=7)
+
 # Map of all samples
 pdf("eda/map_ants_all.pdf", height=7, width=7)
 par(mar=c(0.5, 0.5, 0, 0))
@@ -100,7 +165,7 @@ raster::plot(dem, legend=F, axes=F, box=F,
 raster::scalebar(d=10000, xy=c(570000, 162000), below="km", 
                  label=c(0, 5, 10), type="bar")
 plot(VD, add=TRUE, lwd=0.5)
-plot(select(ant$pub, TubeNo), add=TRUE, col=rgb(1,0,0,0.5), cex=0.75)
+plot(select(ant$pub, TubeNo), add=TRUE, col=rgb(.004,.422,.348,0.5), cex=0.75)
 plot(select(site.sf, region), add=TRUE, col=NA, fill=NA)
 dev.off()
 
@@ -234,7 +299,17 @@ antSum_site <- ant$str %>% st_set_geometry(NULL) %>%
   filter(TypeOfSample=="soil") %>% group_by(BDM) %>% 
   summarise(nTubes=n(), nSp=n_distinct(SPECIESID), nGen=n_distinct(GENUSID),
             nOcc=n_distinct(Plot_id)) %>%
-  left_join(., site.sf, by="BDM")
+  left_join(site.sf, ., by="BDM")
+
+ggplot(antSum_site, aes(fill=nTubes)) + 
+  geom_sf(data=VD, fill="gray85", colour="gray40") +
+  geom_sf() + scale_fill_viridis() +
+  theme(panel.grid=element_blank(), axis.text=element_blank(),
+        panel.border=element_blank(), axis.ticks=element_blank(),
+        legend.position=c(0.85, 0.6))
+ggsave("eda/map_ants_str_siteTubes.pdf", height=7, width=7)
+
+
 antSum_plot <- ant$str %>% st_set_geometry(NULL) %>% 
   filter(TypeOfSample=="soil") %>% group_by(Plot_id) %>% 
   summarise(nTubes=n(), nSp=n_distinct(SPECIESID), nGen=n_distinct(GENUSID)) %>%
@@ -321,13 +396,13 @@ ant.elBin %>% mutate(presence=nTube_plot>0) %>%
   group_by(elBin) %>% summarise(prPresence=mean(presence)) %>%
   ggplot(aes(elBin, prPresence)) + geom_point()
 
+ggplot(ant.elBin, aes(nTube_plot, fill=elBin)) + 
+  geom_hline(yintercept=0, colour="gray30") + geom_bar(colour="gray30") + 
+  facet_wrap(~elBin) + scale_fill_viridis()
 ggplot(ant.elBin, aes(nSp_plot, fill=elBin)) + 
   geom_hline(yintercept=0, colour="gray30") + geom_bar(colour="gray30") + 
   facet_wrap(~elBin) + scale_fill_viridis()
 ggplot(ant.elBin, aes(nGen_plot, fill=elBin)) + 
-  geom_hline(yintercept=0, colour="gray30") + geom_bar(colour="gray30") + 
-  facet_wrap(~elBin) + scale_fill_viridis()
-ggplot(ant.elBin, aes(nTube_plot, fill=elBin)) + 
   geom_hline(yintercept=0, colour="gray30") + geom_bar(colour="gray30") + 
   facet_wrap(~elBin) + scale_fill_viridis()
 
@@ -1031,6 +1106,84 @@ cor.pca[order(abs(cor.pca[,3]), decreasing=T),][1:10,]
   
 ggplot(pca.df, aes(PCA1, PCA2, colour=Tmax, shape=region)) + 
   geom_point(size=3) + scale_colour_viridis() 
+
+
+
+
+
+
+
+
+
+
+mod_cols <- c(Y="#1b9e77", W="#7570b3")
+
+#--- relative abundance in public vs. structured
+relAb.df <- ant$all %>% st_set_geometry(NULL) %>%
+  group_by(source, SPECIESID) %>%
+  summarise(n=n()) %>%
+  mutate(Genus=tax_i$GENRE[match(SPECIESID, tax_i$SPECIESID)],
+         Species=tax_i$ESPECE[match(SPECIESID, tax_i$SPECIESID)],
+         Binom=paste(Genus, Species)) %>%
+  pivot_wider(names_from="source", values_from="n", values_fill=list(n=0)) %>%
+  rename(W=p, Y=s) %>%
+  mutate(W.prop=W/sum(W), Y.prop=Y/sum(Y)) %>%
+  arrange(W.prop, Y.prop) %>% mutate(W.ord=row_number()) %>%
+  arrange(Y.prop, W.prop) %>% mutate(Y.ord=row_number()) 
+
+relAb.gen <- ant$all %>% st_set_geometry(NULL) %>%
+  mutate(Genus=tax_i$GENRE[match(SPECIESID, tax_i$SPECIESID)],
+         Species=tax_i$ESPECE[match(SPECIESID, tax_i$SPECIESID)],
+         Binom=paste(Genus, Species)) %>%
+  group_by(source, Genus) %>% summarise(n=n()) %>%
+  pivot_wider(names_from="source", values_from="n", values_fill=list(n=0)) %>%
+  rename(W=p, Y=s) %>%
+  mutate(W.prop=W/sum(W), Y.prop=Y/sum(Y)) %>%
+  arrange(W.prop, Y.prop) %>% mutate(W.ord=row_number()) %>%
+  arrange(Y.prop, W.prop) %>% mutate(Y.ord=row_number()) 
+
+
+ggplot(relAb.df, aes(W.prop, Y.prop, label=str_replace(Binom, " ", "\n"))) + 
+  geom_point(aes(colour=W.prop>Y.prop), alpha=0.75) + 
+  geom_abline(slope=c(1/10, 1/2, 1, 2, 10), size=0.2, colour="gray40",
+              linetype=c(3,2,1,2,3)) + 
+  xlim(0,0.25) + ylim(0,0.25) +
+  geom_text(data=filter(relAb.df, W.prop > 0.04 | Y.prop > 0.04),
+            size=2.5, hjust=0, nudge_x=0.002, lineheight=0.6) +
+  annotate("label", x=0.075, y=0.225, label="Under-represented in public",
+           colour=mod_cols[["W"]], size=5) + 
+  annotate("label", x=0.175, y=0.025, label="Over-represented in public",
+           colour=mod_cols[["Y"]], size=5) + 
+  scale_colour_manual(values=unname(mod_cols[2:1]), guide=F) +
+  labs(x="Proportion in public", y="Proportion in structured") +
+  theme(panel.grid=element_blank())
+ggsave("eda/relAbund_WY_scatter.pdf", width=6, height=6)
+
+ggplot(relAb.gen, aes(W.prop, Y.prop, label=Genus)) + 
+  geom_point(aes(colour=W.prop>Y.prop), alpha=0.75) + 
+  geom_abline(slope=c(1/10, 1/2, 1, 2, 10), size=0.2, colour="gray40",
+              linetype=c(3,2,1,2,3)) + 
+  xlim(0,0.5) + ylim(0,0.5) +
+  geom_text(data=filter(relAb.gen, W.prop > 0.02 | Y.prop > 0.02),
+            size=2.5, hjust=0, nudge_x=0.005, lineheight=0.6) +
+  annotate("label", x=0.125, y=0.45, label="Under-represented in public",
+           colour=mod_cols[["W"]], size=5) + 
+  annotate("label", x=0.375, y=0.05, label="Over-represented in public",
+           colour=mod_cols[["Y"]], size=5) + 
+  scale_colour_manual(values=unname(mod_cols[2:1]), guide=F) +
+  labs(x="Proportion in public", y="Proportion in structured") +
+  theme(panel.grid=element_blank())
+ggsave("eda/relAbundGen_WY_scatter.pdf", width=6, height=6)
+
+chisq.test(relAb.gen$W, relAb.gen$Y)
+
+
+
+
+
+
+
+
 
 
 
