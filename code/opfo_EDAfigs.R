@@ -29,6 +29,13 @@ tax_i <- gs_read(ss=gs_title("Scientific Ant Inventory VD"), ws="Species") %>%
             c(SPECIESID="Plag_pall", GENRE="Plagiolepis", ESPECE="pallescens"),
             c(SPECIESID="Myrm_curv", GENRE="Myrmica", ESPECE="curvithorax"),
             c(SPECIESID="Form_lugu/para", GENRE="Formica", ESPECE="(para)lugubris"))
+# Land cover
+lc_i <- readxl::read_xlsx("data/landcover_id.xlsx", 1)
+lc_VD <- raster::raster("../2_gis/data/VD_21781/lc_21781.tif")
+ant$all <- ant$all %>% mutate(CatNum=raster::extract(lc_VD, ., fun=first),
+                              Categorie=lc_i$LC[CatNum],
+                              Canopy=lc_i$Canopy[CatNum])
+
 # Topography
 dem <- raster::raster("../2_gis/data/VD_21781/dem_VD_21781.tif") %>%
   raster::mask(., st_zm(VD_raw))
