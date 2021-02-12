@@ -8,23 +8,47 @@
 #' @return dataframe with species names fully standardized
 
 clean_species_names <- function(ant.df) {
-  ant.df <- ant.df %>% filter(!is.na(SPECIESID)) %>%
+  
+  # remove rows with SPECIESID as: 
+  #   NA
+  #   espece exotique
+  #   Camp_herc/lign (few obs; 30+ for each spp)
+  #   Lasi_emar/brun (few obs; 200+ for each spp)
+  #   Lasi_nige/plat (few obs; 40+ for each spp)
+  #   Lept_gred/musc (few obs; few for each spp)
+  ant.df <- ant.df %>% 
+    filter(!is.na(SPECIESID)) %>%
     filter(SPECIESID != "Espèce exotique") %>%
     filter(SPECIESID != "Camp_herc/lign") %>%
     filter(SPECIESID != "Lasi_emar/brun") %>%
     filter(SPECIESID != "Lasi_nige/plat") %>%
-    # filter(SPECIESID != "Tapi_erra") %>%
-    filter(SPECIESID != "Tapi_erra/nige_gr") %>%
-    filter(SPECIESID != "Tapi_nige_gr")
+    filter(SPECIESID != "Lept_gred/musc")
+  
+  # fix typos
   ant.df$SPECIESID[ant.df$SPECIESID=="Form Copt"] <- "Form_copt"
-  ant.df$SPECIESID[ant.df$SPECIESID=="Form_lugubris/paralugubris"] <- "Form_lugu/para"
-  ant.df$SPECIESID[ant.df$SPECIESID=="Form_lugu/para/prat"] <- "Form_lugu/para"
-  ant.df$SPECIESID[ant.df$SPECIESID=="Lasi_alie gr"] <- "Lasi_alie"
   ant.df$SPECIESID[ant.df$SPECIESID=="LasI_para"] <- "Lasi_para"
-  ant.df$SPECIESID[ant.df$SPECIESID=="Temn_nyla gr"] <- "Temn_nyla"
-  ant.df$SPECIESID[ant.df$SPECIESID=="Temn_tube gr"] <- "Temn_tube"
-  ant.df$SPECIESID[ant.df$SPECIESID=="Temn_unif gr"] <- "Temn_unif"
-  ant.df$SPECIESID[ant.df$SPECIESID=="Tetr_caes gr"] <- "Tetr_caes"
+  ant.df$SPECIESID[ant.df$SPECIESID=="Form_lugubris/paralugubris"] <- "Form_lugu/para"
+  
+  # merge morphospecies
+  #   Lasius alienus group
+  ant.df$SPECIESID[ant.df$SPECIESID=="Lasi_alie gr"] <- "Lasi_alie-GR"
+  ant.df$SPECIESID[ant.df$SPECIESID=="Lasi_alie"] <- "Lasi_alie-GR"
+  #   Tapinoma erraticum group
+  ant.df$SPECIESID[ant.df$SPECIESID=="Tapi_erra/nige_gr"] <- "Tapi_erra-GR"
+  ant.df$SPECIESID[ant.df$SPECIESID=="Tapi_nige_gr"] <- "Tapi_erra-GR"
+  ant.df$SPECIESID[ant.df$SPECIESID=="Tapi_erra"] <- "Tapi_erra-GR"
+  #   Temnothorax nylanderi group
+  ant.df$SPECIESID[ant.df$SPECIESID=="Temn_nyla gr"] <- "Temn_nyla-GR"
+  ant.df$SPECIESID[ant.df$SPECIESID=="Temn_nyla"] <- "Temn_nyla-GR"
+  #   Temnothorax tuberum group
+  ant.df$SPECIESID[ant.df$SPECIESID=="Temn_tube gr"] <- "Temn_tube-GR"
+  ant.df$SPECIESID[ant.df$SPECIESID=="Temn_tube"] <- "Temn_tube-GR"
+  #   Temnothorax unifasciatus group
+  ant.df$SPECIESID[ant.df$SPECIESID=="Temn_unif gr"] <- "Temn_unif-GR"
+  ant.df$SPECIESID[ant.df$SPECIESID=="Temn_unif"] <- "Temn_unif-GR"
+  #   Temnothorax caespitum group
+  ant.df$SPECIESID[ant.df$SPECIESID=="Tetr_caes gr"] <- "Tetr_caes-GR"
+  ant.df$SPECIESID[ant.df$SPECIESID=="Tetr_caes"] <- "Tetr_caes-GR"
   return(ant.df)
 }
 
