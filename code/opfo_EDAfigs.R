@@ -268,6 +268,123 @@ plot.sf %>% mutate(elBin=mnt25 %/% 100 * 100) %>%
 ggsave("eda/plot_elDist.pdf", width=4, height=4)
 
 
+plot.sf %>% st_set_geometry(NULL) %>% 
+  mutate(elBin=mnt25 %/% 100 * 100) %>% 
+  group_by(elBin, Categorie) %>% summarise(nPlots=n()) %>%
+  ggplot(aes(elBin+50, nPlots, fill=Categorie)) + 
+  scale_fill_manual(values=lc_cols) +
+  geom_bar(stat="identity", colour="gray30")
+
+plot.sf %>% st_set_geometry(NULL) %>% 
+  mutate(elBin=mnt25 %/% 100 * 100, 
+         CatComb=case_when(Categorie=="Autre" ~ TypeOfOpen,
+                           !Categorie %in% c("Autre", "PrairieSeche") ~ Categorie,
+                           Categorie=="PrairieSeche" ~ "pasture"),
+         CatFact=factor(CatComb, levels=unique(CatComb))) %>%
+  group_by(elBin, CatFact) %>% summarise(nPlots=n()) %>%
+  group_by(elBin) %>% mutate(propPlots=nPlots/sum(nPlots)) %>%
+  filter(CatFact %in% c("pasture", "transport", "ZoneConstruite", 
+                        "crop", "meadow", "PrairieSeche", "CulturePerm")) %>%
+  droplevels %>%
+  mutate(CatFact=forcats::lvls_revalue(CatFact, c("Pâturage", 
+                                                  "Transport",
+                                                  "Zone construite", 
+                                                  "Agriculture", 
+                                                  "Prairie", 
+                                                  "Vignoble ou verger"))) %>%
+  ggplot(aes(elBin+50, propPlots, colour=CatFact)) + 
+  geom_hline(yintercept=0) + geom_point(alpha=0.75) + 
+  stat_smooth(method="loess", span=2, se=F) +
+  scale_y_continuous(labels=scales::percent, limits=c(0, 1)) +
+  scale_colour_manual("Utilisation de terroire", 
+                      values=c("wheat3", "gray60", "gray30", "chartreuse3",
+                               "forestgreen", "mediumpurple3")) +
+  labs(x="Élévation (m)", y="Pourcentage des points d'échantillonage") +
+  theme(panel.grid=element_blank(), 
+        legend.position=c(0.15, 0.825),
+        axis.title=element_text(size=14),
+        axis.text=element_text(size=12), 
+        legend.text=element_text(size=12),
+        legend.title=element_text(size=12))
+ggsave("~/Desktop/opfo_web_figs/human_landuse_elev.pdf",
+       height=6, width=8, units="in")
+
+ant$str %>% st_set_geometry(NULL) %>% 
+  mutate(elBin=mnt25 %/% 100 * 100, 
+         CatComb=case_when(Categorie=="Autre" ~ TypeOfOpen,
+                           !Categorie %in% c("Autre", "PrairieSeche") ~ Categorie,
+                           Categorie=="PrairieSeche" ~ "pasture"),
+         CatFact=factor(CatComb, levels=unique(CatComb))) %>%
+  group_by(elBin, CatFact) %>% summarise(nTubes=n()) %>%
+  group_by(elBin) %>% mutate(propTubes=nTubes/sum(nTubes)) %>%
+  filter(CatFact %in% c("pasture", "transport", "ZoneConstruite", 
+                        "crop", "meadow", "PrairieSeche", "CulturePerm")) %>%
+  droplevels %>%
+  mutate(CatFact=forcats::lvls_revalue(CatFact, c("Vignoble ou verger",
+                                                  "Pâturage", 
+                                                  "Prairie", 
+                                                  "Agriculture",
+                                                  "Zone construite", 
+                                                  "Transport"))) %>%
+  ggplot(aes(elBin+50, propTubes, colour=CatFact)) + 
+  geom_hline(yintercept=0) + geom_point(alpha=0.75) + 
+  stat_smooth(method="loess", span=2, se=F) +
+  scale_y_continuous(labels=scales::percent, limits=c(0, 1)) +
+  scale_colour_manual("Utilisation de terroire", 
+                      values=c("mediumpurple3",
+                               "wheat3", "forestgreen", "chartreuse3",
+                              "gray30", "gray60")) +
+  labs(x="Élévation (m)", y="Pourcentage des colonies") +
+  theme(panel.grid=element_blank(), 
+        legend.position=c(0.15, 0.825),
+        axis.title=element_text(size=14),
+        axis.text=element_text(size=12), 
+        legend.text=element_text(size=12),
+        legend.title=element_text(size=12))
+
+ant$str %>% st_set_geometry(NULL) %>% 
+  mutate(CatComb=case_when(Categorie=="Autre" ~ TypeOfOpen,
+                           !Categorie %in% c("Autre", "PrairieSeche") ~ Categorie,
+                           Categorie=="PrairieSeche" ~ "pasture"),
+         CatFact=factor(CatComb, levels=unique(CatComb))) %>%
+  group_by(CatFact) %>% summarise(nTubes=n(), nSpp=n_distinct(SPECIESID)) %>%
+  ungroup %>% mutate(propTubes=nTubes/sum(nTubes), 
+                     propSpp=nSpp/n_distinct(ant$str$SPECIESID)) %>%
+  filter(CatFact %in% c("pasture", "transport", "ZoneConstruite", 
+                        "crop", "meadow", "PrairieSeche", "CulturePerm")) %>%
+  droplevels %>%
+  mutate(CatFact=forcats::lvls_revalue(CatFact, c("Vignoble ou verger",
+                                                  "Pâturage", 
+                                                  "Prairie", 
+                                                  "Agriculture",
+                                                  "Zone construite", 
+                                                  "Transport"))) %>%
+  mutate(CatFact=forcats::lvls_reorder(CatFact, c(2,6,5,4,3,1))) %>%
+  ggplot(aes(x=CatFact, y=nSpp, fill=CatFact)) + 
+  geom_hline(yintercept=0) + geom_bar(stat="identity", colour="gray30") + 
+  scale_fill_manual("Utilisation de terroire", 
+                      values=c("wheat3", "gray60", "gray30", "chartreuse3",
+                               "forestgreen", "mediumpurple3")) +
+  scale_x_discrete(breaks=c("Pâturage", 
+                            "Transport",
+                            "Zone construite", 
+                            "Agriculture", 
+                            "Prairie", 
+                            "Vignoble ou verger")) +
+  labs(x="", y="Nombre d'espèces") +
+  theme(panel.grid=element_blank(), 
+        legend.position='none',
+        axis.title=element_text(size=14),
+        axis.text=element_text(size=12), 
+        legend.text=element_text(size=12),
+        legend.title=element_text(size=12)) + coord_flip()
+ggsave("~/Desktop/opfo_web_figs/human_landuse_richness.pdf",
+       height=4, width=5, units="in")
+
+
+
+
+
 
 
 
