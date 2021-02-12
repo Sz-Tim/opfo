@@ -465,9 +465,15 @@ ggplot(site.sf, aes(x=el)) +
 
 # Data summaries
 antSum_site <- ant$str %>% st_set_geometry(NULL) %>% 
-  filter(TypeOfSample=="soil") %>% group_by(BDM) %>% 
+  left_join(., select(site.sf, BDM, nPlot_Total), by="BDM") %>%
+  filter(TypeOfSample=="soil") %>% group_by(BDM, Plot_id) %>% 
   summarise(nTubes=n(), nSp=n_distinct(SPECIESID), nGen=n_distinct(GENUSID),
-            nOcc=n_distinct(Plot_id)) %>%
+            nPlot=first(nPlot_Total)) %>%
+  group_by(BDM) %>%
+  summarise(mnTubes=sum(nTubes)/first(nPlot), seTubes=sd(nTubes)/sqrt(first(nPlot)),
+            mnSp=sum(nSp)/first(nPlot), seSp=sd(nSp)/sqrt(first(nPlot)),
+            mnGen=sum(nGen)/first(nPlot), seGen=sd(nGen)/sqrt(first(nPlot)),
+            nOcc=n_distinct(Plot_id), pOcc=nOcc/first(nPlot)) %>%
   left_join(site.sf, ., by="BDM")
 
 ggplot(antSum_site, aes(fill=nTubes)) + 
@@ -478,6 +484,18 @@ ggplot(antSum_site, aes(fill=nTubes)) +
         legend.position=c(0.85, 0.6))
 ggsave("eda/map_ants_str_siteTubes.pdf", height=7, width=7)
 
+ggplot(antSum_site, aes(x=el, y=mnTubes, ymin=mnTubes-seTubes, 
+                        ymax=mnTubes+seTubes, colour=region)) + 
+  geom_point() + geom_linerange() + 
+  scale_colour_manual(values=col_region) + fonts + ylim(0, NA) + 
+  labs(x="Elevation (m)", y="Colony density\n(mean ± SE)")
+
+ggplot(antSum_site, aes(x=el, y=mnSp, ymin=mnSp-seSp, 
+                        ymax=mnSp+seSp, colour=region)) + 
+  geom_point() + geom_linerange() + 
+  scale_colour_manual(values=col_region) + fonts + ylim(0, NA) + 
+  labs(x="Elevation (m)", y="Plot-level richness\n(mean ± SE)")
+
 
 antSum_plot <- ant$str %>% st_set_geometry(NULL) %>% 
   filter(TypeOfSample=="soil") %>% group_by(Plot_id) %>% 
@@ -487,27 +505,32 @@ antSum_plot <- ant$str %>% st_set_geometry(NULL) %>%
   mutate(BDM=factor(BDM))
 
 
-# Site-level patterns
-ggplot(antSum_site, aes(el, nTubes/nPlot_Total)) + 
-  stat_smooth(method="lm", col="gray30", linetype=2, size=0.75, fill="gray85") +
-  geom_point(aes(colour=region), size=2) + 
-  scale_colour_manual(values=col_region) + fonts + ylim(0, NA) + 
-  labs(x="Elevation (m)", y="Site-level colony density\n(mean tubes per plot)")
-ggsave("eda/el_AbundObs_site.pdf", height=5, width=6.5)
-summary(lm(I(nTubes/nPlot_Total) ~ el, data=antSum_site))
+ggplot(antSum_site, aes(el, nSp)) + geom_point() + stat_smooth()
 
-ggplot(antSum_site, aes(el, nOcc/nPlot_Total)) + 
-  stat_smooth(method="lm", col="gray30", linetype=2, size=0.75, fill="gray85") +
-  geom_point(aes(colour=region), size=2) + 
+
+# Site-level patterns
+ggplot(antSum_site, aes(x=el, y=mnTubes, ymin=mnTubes-seTubes, 
+                        ymax=mnTubes+seTubes, colour=region)) + 
+  # stat_smooth(method="lm", col="gray30", linetype=2, size=0.75, fill="gray85") +
+  geom_point(aes(colour=region), size=2) + geom_linerange() + 
   scale_colour_manual(values=col_region) + fonts + ylim(0, NA) + 
-  labs(x="Elevation (m)", y="Site-level plot occupancy")
+  labs(x="Elevation (m)", y="Colony density\n(colonies per plot)")
+ggsave("eda/el_AbundObs_site.pdf", height=5, width=6.5)
+summary(lm(mnTubes ~ el + I(el^2), data=antSum_site))
+
+ggplot(antSum_site, aes(el, pOcc)) + 
+  # stat_smooth(method="lm", col="gray30", linetype=2, size=0.75, fill="gray85") +
+  geom_point(aes(colour=region), size=2) + 
+  scale_colour_manual(values=col_region) + fonts + ylim(0, 1) + 
+  labs(x="Elevation (m)", y="Mean plot occupancy")
 ggsave("eda/el_OccObs_site.pdf", height=5, width=6.5)
 
-ggplot(antSum_site, aes(el, nSp/nPlot_Total)) + 
-  stat_smooth(method="lm", col="gray30", linetype=2, size=0.75, fill="gray85") +
-  geom_point(aes(colour=region), size=2) + 
+ggplot(antSum_site, aes(x=el, y=mnSp, ymin=mnSp-seSp, 
+                        ymax=mnSp+seSp, colour=region)) + 
+  # stat_smooth(method="lm", col="gray30", linetype=2, size=0.75, fill="gray85") +
+  geom_point(aes(colour=region), size=2) + geom_linerange() + 
   scale_colour_manual(values=col_region) + fonts + ylim(0, NA) + 
-  labs(x="Elevation (m)", y="Site-level species density\n(mean species per plot)")
+  labs(x="Elevation (m)", y="Local richness\n(mean species per plot)")
 ggsave("eda/el_SpRichObs_site.pdf", height=5, width=6.5)
 summary(lm(I(nSp/nPlot_Total) ~ el, data=antSum_site))
 
@@ -627,15 +650,371 @@ ant$str %>% st_set_geometry(NULL) %>% group_by(SPECIESID) %>%
             maxEl=max(mnt25)) %>%
   mutate(medEl=minEl + (maxEl-minEl)/2,
          assemblage=case_when(maxEl < 1000 ~ 'low',
-                              maxEl > 1000 & minEl > 1000 ~ 'high',
+                              maxEl > 1000 & minEl > 1000 ~ 'mtn',
                               maxEl > 1000 & minEl < 1000 ~ 'mixed')) %>%
-  mutate(assemblage=factor(assemblage, levels=c("low", "mixed", "high"))) %>%
+  mutate(assemblage=factor(assemblage, levels=c("low", "mixed", "mtn"))) %>%
   arrange(assemblage, medEl, desc(minEl)) %>% 
   mutate(spOrd=factor(SPECIESID, levels=SPECIESID)) %>%
   ggplot(aes(x=spOrd, y=medEl, ymin=minEl, ymax=maxEl, colour=assemblage)) + 
   geom_pointrange() + coord_flip()
 
+ant.assemblages <- ant$all %>% st_set_geometry(NULL) %>% 
+  group_by(SPECIESID) %>%
+  summarise(minEl=min(el, na.rm=T), 
+            maxEl=max(el, na.rm=T)) %>%
+  mutate(medEl=minEl + (maxEl-minEl)/2,
+         assemblage=case_when(maxEl <= 1000 ~ 'Plateau',
+                              maxEl > 1000 & minEl > 1000 ~ 'Montane',
+                              maxEl >= 1000 & minEl < 1000 ~ 'Mixed')) %>%
+  mutate(assemblage=factor(assemblage, 
+                           levels=c("Plateau", "Mixed", "Montane"))) %>%
+  arrange(assemblage, medEl, desc(minEl)) %>% 
+  mutate(spOrd=factor(SPECIESID, levels=SPECIESID))
+ant.assemblages %>%
+  ggplot(aes(x=spOrd, y=medEl, ymin=minEl, ymax=maxEl, colour=assemblage)) + 
+  geom_pointrange(fatten=0.7) + coord_flip() + theme(legend.position=c(0.8, 0.1)) +
+  labs(title="Observed elevational ranges", x="", y="Elevation (m)")
+ggsave("eda/elRanges_all.pdf", height=12, width=6)
 
+ant$str %>% st_set_geometry(NULL) %>% group_by(SPECIESID, Categorie) %>%
+  summarise(nTubes=n()) %>% group_by(SPECIESID) %>%
+  mutate(pTubes=nTubes/sum(nTubes)) %>% ungroup %>%
+  complete(SPECIESID, Categorie) %>%
+  ggplot(aes(x=Categorie, y=SPECIESID, fill=pTubes)) + 
+  geom_point(size=5, shape=22, colour="gray") + 
+  scale_fill_gradient("Proportion of tubes\n(within species)",low="white", 
+                      high="#a50026", na.value="gray80", limits=c(0, 1)) + 
+  theme(axis.text.x=element_text(angle=270, hjust=0, vjust=0.5)) + 
+  labs(title="Distribution among land cover types", x="", y="",
+       subtitle="Proportion of tubes, regardless of habitat abundances")
+ggsave("eda/lcDistr_str.pdf", height=10, width=6)
+
+
+ant$str %>% st_set_geometry(NULL) %>% group_by(SPECIESID, BDM) %>%
+  summarise() %>% full_join(select(plot.i, BDM, Categorie), by="BDM") %>%
+  group_by(SPECIESID, Categorie) %>% 
+  summarise(nPlots=n()) %>% group_by(SPECIESID) %>% 
+  mutate(pPlots=nPlots/sum(nPlots)) %>% ungroup %>%
+  complete(SPECIESID, Categorie) %>%
+  full_join(., 
+            ant$str %>% st_set_geometry(NULL) %>% group_by(SPECIESID, Categorie) %>%
+              summarise(nTubes=n()) %>% group_by(SPECIESID) %>%
+              mutate(pTubes=nTubes/sum(nTubes)) %>% ungroup %>%
+              complete(SPECIESID, Categorie, fill=list(pTubes=0)),
+            by=c("SPECIESID", "Categorie")) %>%
+  mutate(pref=pTubes-pPlots) %>% 
+  ggplot(aes(x=Categorie, y=SPECIESID, fill=pref)) + 
+  geom_point(size=5, shape=22, colour="gray") + 
+  scale_fill_gradient2("Relative habitat use\n(within species)", low="#313695",
+                     mid="white", high="#a50026", na.value="gray80", 
+                     limits=c(-1, 1)) + 
+  theme(axis.text.x=element_text(angle=270, hjust=0, vjust=0.5)) + 
+  labs(title="Distribution among available land cover types", x="", y="",
+       subtitle="(relAbund of tubes) - (relAbund habitat in BDMs where detected)")
+ggsave("eda/lcDistrStandardized_str.pdf", height=10, width=6)
+
+ant$str %>% st_set_geometry(NULL) %>% group_by(SPECIESID, BDM) %>%
+  summarise() %>% full_join(select(plot.i, BDM, Categorie), by="BDM") %>%
+  group_by(SPECIESID, Categorie) %>% 
+  summarise(nPlots=n()) %>% group_by(SPECIESID) %>% 
+  mutate(pPlots=nPlots/sum(nPlots)) %>% ungroup %>%
+  complete(SPECIESID, Categorie) %>%
+  full_join(., 
+            ant$str %>% st_set_geometry(NULL) %>% 
+              group_by(SPECIESID, Categorie) %>%
+              summarise(nTubes=n()) %>% group_by(SPECIESID) %>%
+              mutate(pTubes=nTubes/sum(nTubes)) %>% ungroup %>%
+              complete(SPECIESID, Categorie),
+            by=c("SPECIESID", "Categorie")) %>%
+  mutate(pref=pTubes-pPlots) %>% 
+  ggplot(aes(x=Categorie, y=SPECIESID, fill=pref)) + 
+  geom_point(size=5, shape=22, colour="gray") + 
+  scale_fill_gradient2("Relative habitat use\n(within species)\ndetections only",
+                       low="#313695", mid="white", high="#a50026", 
+                       na.value="gray80", limits=c(-1, 1)) + 
+  theme(axis.text.x=element_text(angle=270, hjust=0, vjust=0.5)) + 
+  labs(title="Distribution among available land cover types", x="", y="",
+       subtitle="(relAbund of tubes) - (relAbund habitat in BDMs where detected)")
+ggsave("eda/lcDistrStandardizedDet_str.pdf", height=10, width=6)
+
+
+ant$str %>% st_set_geometry(NULL) %>% 
+  filter(Categorie=="Autre" & !is.na(TypeOfOpen)) %>%
+  group_by(SPECIESID, TypeOfOpen) %>%
+  summarise(nTubes=n()) %>% group_by(SPECIESID) %>%
+  mutate(pTubes=nTubes/sum(nTubes)) %>% ungroup %>%
+  complete(SPECIESID, TypeOfOpen) %>%
+  ggplot(aes(x=TypeOfOpen, y=SPECIESID, fill=pTubes)) + 
+  geom_point(size=5, shape=22, colour="gray") + 
+  scale_fill_gradient("Proportion of tubes\n(within species)",low="white", 
+                      high="#a50026", na.value="gray80", limits=c(0, 1)) + 
+  theme(axis.text.x=element_text(angle=270, hjust=0, vjust=0.5)) + 
+  labs(title="Distribution among land cover types", x="", y="",
+       subtitle="Proportion of tubes, regardless of habitat abundances")
+ggsave("eda/autreDistr_str.pdf", height=10, width=6)
+
+
+ant$str %>% st_set_geometry(NULL) %>% 
+  filter(Categorie=="Autre" & !is.na(TypeOfOpen)) %>%
+  group_by(SPECIESID, BDM) %>%
+  summarise() %>% full_join(select(plot.i, BDM, TypeOfOpen), by="BDM") %>%
+  filter(!is.na(TypeOfOpen)) %>%
+  group_by(SPECIESID, TypeOfOpen) %>% 
+  summarise(nPlots=n()) %>% group_by(SPECIESID) %>% 
+  mutate(pPlots=nPlots/sum(nPlots)) %>% ungroup %>%
+  complete(SPECIESID, TypeOfOpen) %>%
+  full_join(., 
+            ant$str %>% st_set_geometry(NULL) %>% 
+              filter(Categorie=="Autre" & !is.na(TypeOfOpen)) %>%
+              group_by(SPECIESID, TypeOfOpen) %>%
+              summarise(nTubes=n()) %>% group_by(SPECIESID) %>%
+              mutate(pTubes=nTubes/sum(nTubes)) %>% ungroup %>%
+              complete(SPECIESID, TypeOfOpen, fill=list(pTubes=0)),
+            by=c("SPECIESID", "TypeOfOpen")) %>%
+  mutate(pref=pTubes-pPlots) %>% 
+  ggplot(aes(x=TypeOfOpen, y=SPECIESID, fill=pref)) + 
+  geom_point(size=5, shape=22, colour="gray") + 
+  scale_fill_gradient2("Relative habitat use\n(within species)", low="#313695",
+                       mid="white", high="#a50026", na.value="gray80", 
+                       limits=c(-1, 1)) + 
+  theme(axis.text.x=element_text(angle=270, hjust=0, vjust=0.5)) + 
+  labs(title="Distribution among available land cover types", x="", y="",
+       subtitle="(relAbund of tubes) - (relAbund habitat in BDMs where detected)")
+ggsave("eda/autreDistrStandardized_str.pdf", height=10, width=6)
+
+ant$str %>% st_set_geometry(NULL) %>% 
+  filter(Categorie=="Autre" & !is.na(TypeOfOpen)) %>%
+  group_by(SPECIESID, BDM) %>%
+  summarise() %>% full_join(select(plot.i, BDM, TypeOfOpen), by="BDM") %>%
+  filter(!is.na(TypeOfOpen)) %>%
+  group_by(SPECIESID, TypeOfOpen) %>% 
+  summarise(nPlots=n()) %>% group_by(SPECIESID) %>% 
+  mutate(pPlots=nPlots/sum(nPlots)) %>% ungroup %>%
+  complete(SPECIESID, TypeOfOpen) %>%
+  full_join(., 
+            ant$str %>% st_set_geometry(NULL) %>% 
+              filter(Categorie=="Autre" & !is.na(TypeOfOpen)) %>%
+              group_by(SPECIESID, TypeOfOpen) %>%
+              summarise(nTubes=n()) %>% group_by(SPECIESID) %>%
+              mutate(pTubes=nTubes/sum(nTubes)) %>% ungroup %>%
+              complete(SPECIESID, TypeOfOpen),
+            by=c("SPECIESID", "TypeOfOpen")) %>%
+  mutate(pref=pTubes-pPlots) %>% 
+  ggplot(aes(x=TypeOfOpen, y=SPECIESID, fill=pref)) + 
+  geom_point(size=5, shape=22, colour="gray") + 
+  scale_fill_gradient2("Relative habitat use\n(within species)\ndetections only",
+                       low="#313695", mid="white", high="#a50026", 
+                       na.value="gray80", limits=c(-1, 1)) + 
+  theme(axis.text.x=element_text(angle=270, hjust=0, vjust=0.5)) + 
+  labs(title="Distribution among available land cover types", x="", y="",
+       subtitle="(relAbund of tubes) - (relAbund habitat in BDMs where detected)")
+ggsave("eda/autreDistrStandardizedDet_str.pdf", height=10, width=6)
+
+
+ant$str %>% st_set_geometry(NULL) %>% group_by(Categorie) %>%
+  summarise(nSpp=n_distinct(SPECIESID), nTube=n()) %>%
+  ggplot(aes(x=Categorie, y=nTube)) + geom_bar(stat="identity")
+
+plot.sum <- ant$str %>% st_set_geometry(NULL) %>% 
+  filter(TypeOfSample=="soil") %>% select(-mnt25, -TypeOfOpen) %>%
+  full_join(plot.sf %>% st_set_geometry(NULL) %>% 
+              select(Plot_id, Categorie, TypeOfOpen, mnt25), 
+            by=c("Plot_id", "Categorie")) %>%
+  group_by(Categorie, Plot_id, TypeOfOpen, mnt25) %>% 
+  summarise(nTube=sum(!is.na(SPECIESID)), 
+            nSpp=n_distinct(SPECIESID, na.rm=T)) %>%
+  mutate(elBin=mnt25 %/% 100 * 100)
+cat.sum <- ant$str %>% st_set_geometry(NULL) %>% filter(TypeOfSample=="soil") %>%
+  full_join(select(plot.i, Plot_id, Categorie), by=c("Plot_id", "Categorie")) %>%
+  group_by(Categorie, Plot_id) %>% 
+  summarise(nTube=sum(!is.na(SPECIESID)), 
+            nSpp=n_distinct(SPECIESID, na.rm=T)) %>%
+  group_by(Categorie) %>%
+  summarise(mnTube=mean(nTube), sdTube=sd(nTube), seTube=sdTube/n(),
+            mnSpp=mean(nSpp), sdSpp=sd(nSpp), seSpp=sdSpp/n(),
+            mnPres=mean(nTube>0), nPlots=n())
+ggplot(cat.sum, aes(x=Categorie, y=mnPres)) + geom_point(size=3) + coord_flip() +
+  labs(x="", y="Proportion of plots with colonies") + ylim(0,1)
+ggsave("eda/lcPlotPres_str.pdf", height=10, width=6)
+
+ggplot(cat.sum, aes(x=Categorie, y=mnSpp)) + 
+  geom_boxplot(data=plot.sum, aes(y=nSpp), outlier.alpha=0.3) + 
+  geom_point(size=3, shape=1) + coord_flip() +
+  labs(x="", y="Species per plot (open point = mean)") 
+ggsave("eda/lcPlotSpp_str.pdf", height=10, width=6)
+ggplot(cat.sum, aes(x=Categorie, y=mnTube)) + 
+  geom_boxplot(data=plot.sum, aes(y=nTube), outlier.alpha=0.3) + 
+  geom_point(size=3, shape=1) + coord_flip() +
+  labs(x="", y="Tubes per plot (open point = mean)") 
+ggsave("eda/lcPlotTubes_str.pdf", height=10, width=6)
+
+
+ggplot(plot.sum, aes(x=mnt25, y=nTube)) + geom_point(alpha=0.5) + ylim(0,13) +
+  stat_smooth(method="glm", size=0.5, method.args=list(family="poisson")) + 
+  facet_wrap(~Categorie) + labs(x="Elevation (m)", y="Number of Tubes per plot")
+ggsave("eda/lc_el_plotTubes.pdf", height=10, width=10)
+ggplot(plot.sum, aes(x=mnt25, y=nSpp)) + geom_point(alpha=0.5) + ylim(0,7) +
+  stat_smooth(method="glm", size=0.5, method.args=list(family="poisson")) + 
+  facet_wrap(~Categorie) + labs(x="Elevation (m)", y="Number of Species per plot")
+ggsave("eda/lc_el_plotSpp.pdf", height=10, width=10)
+ggplot(plot.sum, aes(x=mnt25, y=as.numeric(nTube>0))) + geom_point(alpha=0.5) + 
+  stat_smooth(method="glm", size=0.5, method.args=list(family="binomial")) + 
+  facet_wrap(~Categorie) + labs(x="Elevation (m)", y="pr(N > 0) per plot")
+ggsave("eda/lc_el_plotPrPres.pdf", height=10, width=10)
+
+ggplot(filter(plot.sum, Categorie=="Autre" & !is.na(TypeOfOpen)), 
+       aes(x=mnt25, y=nTube)) + geom_point(alpha=0.5) + ylim(0,13) +
+  stat_smooth(method="glm", size=0.5, method.args=list(family="poisson")) + 
+  facet_wrap(~TypeOfOpen) + labs(x="Elevation (m)", y="Number of Tubes per plot")
+ggsave("eda/autre_el_plotTubes.pdf", height=5, width=7)
+ggplot(filter(plot.sum, Categorie=="Autre" & !is.na(TypeOfOpen)), 
+       aes(x=mnt25, y=nSpp)) + geom_point(alpha=0.5) + ylim(0,7) +
+  stat_smooth(method="glm", size=0.5, method.args=list(family="poisson")) + 
+  facet_wrap(~TypeOfOpen) + labs(x="Elevation (m)", y="Number of Species per plot")
+ggsave("eda/autre_el_plotSpp.pdf", height=5, width=7)
+ggplot(filter(plot.sum, Categorie=="Autre" & !is.na(TypeOfOpen)), 
+       aes(x=mnt25, y=as.numeric(nTube>0))) + geom_point(alpha=0.5) + 
+  stat_smooth(method="glm", size=0.5, method.args=list(family="binomial")) + 
+  facet_wrap(~TypeOfOpen) + labs(x="Elevation (m)", y="pr(N > 0) per plot")
+ggsave("eda/autre_el_plotPrPres.pdf", height=5, width=7)
+
+
+ggplot(plot.sum, aes(x=Categorie, fill=nTube>0)) + coord_flip() +
+  geom_bar() + scale_fill_manual(values=c("gray", "darkgreen"))
+ggplot(plot.sum, aes(x=Categorie, fill=nTube>0)) + coord_flip() +
+  geom_bar(position="fill") + scale_fill_manual(values=c("gray", "darkgreen"))
+plot.sum %>% mutate(nTube.f=factor(nTube, levels=13:1, exclude=0)) %>%
+  ggplot(aes(x=Categorie, fill=nTube.f)) + 
+  coord_flip() + geom_bar(position="fill") + 
+  scale_fill_viridis_d("Number\nof tubes", na.value="gray", direction=-1) + 
+  labs(x="", y="Proportion of plots")
+ggsave("eda/plotProps_nTubes_lc.pdf", height=6, width=7)
+plot.sum %>% mutate(nTube.f=factor(nTube, levels=0:13)) %>% ungroup %>%
+  ggplot(aes(x=nTube.f, y=(..count..)/sum(..count..))) + geom_bar() +
+  geom_text(aes(label=(..count..)), stat="count", nudge_y=0.02) +
+  labs(x="Number of tubes per plot", y="Proportion of plots")
+ggsave("eda/plotProps_nTubes.pdf", height=6, width=7)
+plot.sum %>% mutate(nTube.f=factor(nTube, levels=0:13)) %>% ungroup %>%
+  ggplot(aes(x=nTube.f, y=(..count..)/tapply(..count..,..PANEL..,sum)[..PANEL..])) + 
+  geom_bar() +
+  geom_text(aes(label=(..count..)), stat="count", nudge_y=0.05, size=3) +
+  facet_wrap(~Categorie) + 
+  labs(x="Number of tubes per plot", y="Proportion of plots")
+ggsave("eda/lc_plotProps_nTubes.pdf", height=9, width=10)
+plot.sum %>% mutate(nTube.f=factor(nTube, levels=0:13)) %>% ungroup %>%
+  filter(Categorie=="Autre" & !is.na(TypeOfOpen)) %>%
+  ggplot(aes(x=nTube.f, y=(..count..)/tapply(..count..,..PANEL..,sum)[..PANEL..])) + 
+  geom_bar() +
+  geom_text(aes(label=(..count..)), stat="count", nudge_y=0.04, size=3) +
+  facet_wrap(~TypeOfOpen) + 
+  labs(x="Number of tubes per plot", y="Proportion of plots")
+ggsave("eda/autre_plotProps_nTubes.pdf", height=5, width=7)
+
+
+plot.sum %>% mutate(nSpp.f=factor(nSpp, levels=7:1, exclude=0)) %>%
+  ggplot(aes(x=Categorie, fill=nSpp.f)) + 
+  coord_flip() + geom_bar(position="fill") + 
+  scale_fill_viridis_d("Number\nof species", na.value="gray", direction=-1) + 
+  labs(x="", y="Proportion of plots")
+ggsave("eda/plotProps_nSpp_lc.pdf", height=6, width=7)
+plot.sum %>% mutate(nSpp.f=factor(nSpp, levels=0:13)) %>% ungroup %>%
+  ggplot(aes(x=nSpp.f, y=(..count..)/sum(..count..))) + geom_bar() +
+  geom_text(aes(label=(..count..)), stat="count", nudge_y=0.02) +
+  labs(x="Number of species per plot", y="Proportion of plots")
+ggsave("eda/plotProps_nSpp.pdf", height=6, width=7)
+plot.sum %>% mutate(nSpp.f=factor(nSpp, levels=0:13)) %>% ungroup %>%
+  ggplot(aes(x=nSpp.f, y=(..count..)/tapply(..count..,..PANEL..,sum)[..PANEL..])) +
+  geom_bar() +
+  geom_text(aes(label=(..count..)), stat="count", nudge_y=0.05, size=3) +
+  facet_wrap(~Categorie) + 
+  labs(x="Number of species per plot", y="Proportion of plots")
+ggsave("eda/lc_plotProps_nSpp.pdf", height=9, width=10)
+plot.sum %>% mutate(nSpp.f=factor(nSpp, levels=0:13)) %>% ungroup %>%
+  filter(Categorie=="Autre" & !is.na(TypeOfOpen)) %>%
+  ggplot(aes(x=nSpp.f, y=(..count..)/tapply(..count..,..PANEL..,sum)[..PANEL..])) +
+  geom_bar() +
+  geom_text(aes(label=(..count..)), stat="count", nudge_y=0.04, size=3) +
+  facet_wrap(~TypeOfOpen) + 
+  labs(x="Number of species per plot", y="Proportion of plots")
+ggsave("eda/autre_plotProps_nSpp.pdf", height=5, width=7)
+
+
+ant$str %>% st_set_geometry(NULL) %>% group_by(Categorie) %>% 
+  summarise(totS=n_distinct(SPECIESID)) %>% ungroup %>% arrange(totS) %>%
+  mutate(Cat=factor(Categorie, levels=unique(Categorie))) %>%
+  ggplot(aes(x=Cat, y=totS)) + geom_bar(stat="identity") +
+  labs(x="", y="Total species") + coord_flip()
+ggsave("eda/lc_totalSpecies.pdf", height=6, width=4)
+
+ant$str %>% st_set_geometry(NULL) %>% 
+  filter(Categorie=="Autre" & !is.na(TypeOfOpen)) %>%
+  group_by(TypeOfOpen) %>% 
+  summarise(totS=n_distinct(SPECIESID)) %>% ungroup %>% arrange(totS) %>%
+  mutate(Type=factor(TypeOfOpen, levels=unique(TypeOfOpen))) %>%
+  ggplot(aes(x=Type, y=totS)) + geom_bar(stat="identity") +
+  labs(x="", y="Total species") + coord_flip()
+ggsave("eda/lc_autre_totalSpecies.pdf", height=3, width=4)
+
+
+plot.sum %>% mutate(nSpp.f=factor(nSpp, levels=7:0)) %>% 
+  group_by(Categorie, nSpp.f) %>%
+  summarise(nPlot=n()) %>% group_by(Categorie) %>% 
+  mutate(pPlot=nPlot/sum(nPlot)) %>%
+  ungroup %>% complete(Categorie, nSpp.f) %>%
+  ggplot(aes(x=Categorie, y=nSpp.f, fill=pPlot)) + 
+  geom_point(size=5, shape=22, colour="gray") +
+  theme(axis.text.x=element_text(angle=270, hjust=0, vjust=0.5)) +
+  labs(title="Distribution of plot-level richness among habitats",
+       x="", y="Number of species per plot") + 
+  scale_fill_gradient("Proportion of plots\nwithin habitat type", low="white", 
+                      high="#a50026", na.value="gray80", limits=c(0, 1))
+ggsave("eda/lcDistr_S.pdf", height=3, width=5)
+
+plot.sum %>% mutate(nTube.f=factor(nTube, levels=13:0)) %>% 
+  group_by(Categorie, nTube.f) %>%
+  summarise(nPlot=n()) %>% group_by(Categorie) %>% 
+  mutate(pPlot=nPlot/sum(nPlot)) %>%
+  ungroup %>% complete(Categorie, nTube.f) %>%
+  ggplot(aes(x=Categorie, y=nTube.f, fill=pPlot)) + 
+  geom_point(size=5, shape=22, colour="gray") +
+  theme(axis.text.x=element_text(angle=270, hjust=0, vjust=0.5)) +
+  labs(title="Distribution of plot-level tubes among habitats",
+       x="", y="Number of tubes per plot") + 
+  scale_fill_gradient("Proportion of plots\nwithin habitat type", low="white", 
+                      high="#a50026", na.value="gray80", limits=c(0, 1))
+ggsave("eda/lcDistr_N.pdf", height=4, width=5)
+
+
+
+plot.sum %>% mutate(nSpp.f=factor(nSpp, levels=7:0)) %>% 
+  filter(Categorie=="Autre" & !is.na(TypeOfOpen)) %>%
+  group_by(TypeOfOpen, nSpp.f) %>%
+  summarise(nPlot=n()) %>% group_by(TypeOfOpen) %>% 
+  mutate(pPlot=nPlot/sum(nPlot)) %>%
+  ungroup %>% complete(TypeOfOpen, nSpp.f) %>%
+  ggplot(aes(x=TypeOfOpen, y=nSpp.f, fill=pPlot)) + 
+  geom_point(size=5, shape=22, colour="gray") +
+  theme(axis.text.x=element_text(angle=270, hjust=0, vjust=0.5)) +
+  labs(title="Distribution of plot-level richness among habitats",
+       x="", y="Number of species per plot") + 
+  scale_fill_gradient("Proportion of plots\nwithin habitat type", low="white", 
+                      high="#a50026", na.value="gray80", limits=c(0, 1))
+ggsave("eda/autreDistr_S.pdf", height=3, width=5)
+
+plot.sum %>% mutate(nTube.f=factor(nTube, levels=13:0)) %>% 
+  filter(Categorie=="Autre" & !is.na(TypeOfOpen)) %>%
+  group_by(TypeOfOpen, nTube.f) %>%
+  summarise(nPlot=n()) %>% group_by(TypeOfOpen) %>% 
+  mutate(pPlot=nPlot/sum(nPlot)) %>%
+  ungroup %>% complete(TypeOfOpen, nTube.f) %>%
+  ggplot(aes(x=TypeOfOpen, y=nTube.f, fill=pPlot)) + 
+  geom_point(size=5, shape=22, colour="gray") +
+  theme(axis.text.x=element_text(angle=270, hjust=0, vjust=0.5)) +
+  labs(title="Distribution of plot-level tubes among habitats",
+       x="", y="Number of tubes per plot") + 
+  scale_fill_gradient("Proportion of plots\nwithin habitat type", low="white", 
+                      high="#a50026", na.value="gray80", limits=c(0, 1))
+ggsave("eda/autreDistr_N.pdf", height=4, width=5)
 
 
 
@@ -652,7 +1031,9 @@ site.dist.el <- dist(cbind(site.sf$el, site.sf$el))
 
 
 ##--- community matrices
-comm.site <- ant$str %>% filter(TypeOfSample=="soil") %>% st_set_geometry(NULL) %>%
+comm.site <- ant$str %>% filter(TypeOfSample=="soil") %>% 
+  filter(mnt25 < 1000) %>%
+  st_set_geometry(NULL) %>%
   group_by(BDM, SPECIESID) %>% summarise(nObs=n()) %>%
   ungroup %>% spread(SPECIESID, nObs)
 comm.site.mx <- comm.site %>% select(-BDM) %>% as.matrix
@@ -661,12 +1042,36 @@ rownames(comm.site.mx) <- comm.site$BDM
 
 comm.plot <- ant$str %>% filter(TypeOfSample=="soil") %>% st_set_geometry(NULL) %>%
   filter(SPECIESID!="Tapi_erra") %>%
-  group_by(Plot_id, GENUSID) %>% summarise(nObs=n()) %>%
+  # filter(mnt25<1000) %>%
+  mutate(CatComb=case_when(Categorie=="Autre" ~ TypeOfOpen,
+                           !Categorie %in% c("Autre", "PrairieSeche") ~ Categorie,
+                           Categorie=="PrairieSeche" ~ "pasture"),
+         CatFact=factor(CatComb, levels=unique(CatComb)),
+         CatAgg=case_when(CatComb=="crop" ~ "Disturb_High",
+                          CatComb=="CulturePerm" ~ "Disturb_Low",
+                          CatComb=="ForetConifere" ~ "Forest",
+                          CatComb=="ForetFeuillus" ~ "Forest",
+                          CatComb=="ForetMixe" ~ "Forest",
+                          CatComb=="Graviere" ~ "Disturb_Low",
+                          CatComb=="Humide" ~ "Wet",
+                          CatComb=="lawn" ~ "Disturb_Low",
+                          CatComb=="lisiere" ~ "Lisiere",
+                          CatComb=="marais" ~ "Wet",
+                          CatComb=="other" ~ "Disturb_Low",
+                          CatComb=="pasture" ~ "Pasture",
+                          CatComb=="pierrier" ~ "Disturb_Low",
+                          CatComb=="transport" ~ "Disturb_High",
+                          CatComb=="zalluviale" ~ "Wet",
+                          CatComb=="ZoneConstruite" ~ "Disturb_High")) %>%
+  # filter(CatFact %in% c("pasture", "transport", "ZoneConstruite", 
+  #                           "crop", "meadow", "PrairieSeche", "CulturePerm")) %>%
+  droplevels %>%
+  group_by(CatAgg, Plot_id, GENUSID) %>% summarise(nObs=n()) %>%
   ungroup %>% spread(GENUSID, nObs)
-comm.plot.mx <- comm.plot %>% select(-Plot_id) %>% as.matrix
+comm.plot.mx <- comm.plot %>% select(-Plot_id, -CatAgg) %>% as.matrix
 comm.plot.mx[is.na(comm.plot.mx)] <- 0
 rownames(comm.plot.mx) <- comm.plot$Plot_id 
-comm.plot.mx <- comm.plot.mx[rowSums(comm.plot.mx)>1,]
+comm.plot.mx <- comm.plot.mx[rowSums(comm.plot.mx)>0,]
 
 comm.bin <- ant$str %>% filter(TypeOfSample=="soil") %>% st_set_geometry(NULL) %>%
   mutate(elBin=mnt25 %/% 100 * 100) %>%
@@ -682,7 +1087,7 @@ comm.bin.mx <- comm.bin.mx[rowSums(comm.bin.mx)>1,]
 
 ##--- NMDS
 nmds.site <- vegan::metaMDS(comm.site.mx, trymax=200, distance="bray", k=2)
-nmds.plot <- vegan::metaMDS(comm.plot.mx, trymax=200, distance="jaccard", k=3)
+nmds.plot <- vegan::metaMDS(log(comm.plot.mx+1), trymax=200, distance="bray", k=3)
 nmds.bin <- vegan::metaMDS(comm.bin.mx, trymax=200, distance="bray", k=2)
 
 nmds.site.df <- as.data.frame(nmds.site$points) %>%
@@ -691,21 +1096,30 @@ nmds.site.df <- as.data.frame(nmds.site$points) %>%
   mutate(el_cat=forcats::lvls_revalue(region, c("Mtn", "Mtn", "Low")))
 nmds.plot.df <- as.data.frame(nmds.plot$points) %>%
   mutate(Plot_id=rownames(.)) %>%
-  full_join(., st_set_geometry(plot.sf, NULL), by="Plot_id") %>%
-  mutate(el_cat=forcats::lvls_revalue(region, c("Mtn", "Mtn", "Low")))
+  left_join(., st_set_geometry(plot.sf, NULL), by="Plot_id") %>%
+  mutate(el_cat=forcats::lvls_revalue(region, c("Mtn", "Mtn", "Low"))) %>%
+  mutate(CatComb=case_when(Categorie=="Autre" ~ TypeOfOpen,
+                           !Categorie %in% c("Autre", "PrairieSeche") ~ Categorie,
+                           Categorie=="PrairieSeche" ~ "pasture"),
+         CatFact=factor(CatComb, levels=unique(CatComb))) %>%
+  filter(CatFact %in% c("pasture", "transport", "ZoneConstruite", 
+                        "crop", "meadow", "PrairieSeche", "CulturePerm")) %>%
+  droplevels
 nmds.bin.df <- as.data.frame(nmds.bin$points) %>%
   mutate(elBin=rownames(.))
 
 
 
 ##--- bioenv
-mod_v <- paste(names(nmds.site.df)[c(4, 6, 7, 
+mod_v <- paste(names(nmds.site.df)[c(#4, 
+                                     6, 7, 
                                      # 9, 11, 13, 15, 17, 19, 
                                      # 21:23, 27, 29, 
                                      # 32:50,
                                      32, 33, 34, 35, 36, 38, 40, 42, 46, 47, 48,
-                                     51:55,
-                                     66)], collapse=" + ")
+                                     51:55#,
+                                     #66
+                                     )], collapse=" + ")
 bioenv.site <- bioenv(as.formula(paste("vegdist(comm.site.mx, method='bray') ~", 
                                        mod_v, collapse="")), 
                       upto=10, data=nmds.site.df, parallel=4, metric="gower")
@@ -722,7 +1136,7 @@ mantel.plot <- mantel(vegdist(comm.plot.mx, method='bray'), bioenvdist(bioenv.pl
 
 
 ##--- adonis or anosim
-adonis(vegdist(comm.site.mx, method='bray') ~ el_cat + Iso + Tmax + Tseas + el, 
+adonis(vegdist(comm.site.mx, method='bray') ~ el_cat + Iso + Tmax + Tseas + SoilTemp_mean, 
        data=nmds.site.df)
 anosim(vegdist(comm.site.mx, method='bray'), grouping=nmds.site.df$el_cat)
 anosim(vegdist(comm.site.mx, method='bray'), grouping=nmds.site.df$region)
@@ -753,6 +1167,16 @@ plot(1:5, map_dbl(kmns.bin.ls, ~.$tot.withinss),
 nmds.bin.df <- nmds.bin.df %>%
   mutate(kmns_2=factor(kmns.bin.ls[[2]]$cluster))
 
+# Environment
+nmds.env <- vegan::metaMDS(bioenvdist(bioenv.site))
+nmds.site.df <- nmds.site.df %>%
+  mutate(env_MDS1=nmds.env$points[,1], env_MDS2=nmds.env$points[,2])
+kmns.env.ls <- map(1:5, ~kmeans(as.matrix(bioenvdist(bioenv.site)), ., 1e4, 1e2))
+plot(1:5, map_dbl(kmns.env.ls, ~.$tot.withinss), 
+     xlab="Clusters", ylab="SS", type="b")
+nmds.site.df <- nmds.site.df %>%
+  mutate(env_kmns=factor(kmns.env.ls[[2]]$cluster))
+
 
 
 ##--- plots
@@ -769,6 +1193,11 @@ full_join(select(site.sf, BDM), nmds.site.df, by="BDM") %>%
   geom_sf(aes(colour=region, fill=region), size=2) + 
   scale_colour_manual(values=col_region) + scale_fill_manual(values=col_region)
 ggsave("eda/NMDS_site_region_MAP.pdf", width=5, height=5)
+ggplot(nmds.site.df, aes(x=MDS1, y=MDS2, colour=env_kmns, fill=env_kmns)) + fonts +
+  ggConvexHull::geom_convexhull(alpha=0.2, size=0.25) + geom_point() + 
+  geom_point(data=nmds.site.df %>% group_by(env_kmns) %>% 
+               summarise(MDS1=mean(MDS1), MDS2=mean(MDS2)), shape=1, size=4) 
+ggsave("eda/NMDS_site_env.pdf", width=5, height=3.5)
 
 ggplot(nmds.site.df, aes(x=MDS1, y=MDS2, colour=el_cat, fill=el_cat)) + fonts +
   ggConvexHull::geom_convexhull(alpha=0.2, size=0.25) + geom_point() + 
@@ -826,6 +1255,27 @@ ggplot(nmds.plot.df, aes(x=MDS1, y=MDS2, colour=kmns_2, fill=kmns_2)) +
   scale_fill_manual("Clusters", values=setNames(col_mtn, 2:1)) + 
   theme(panel.grid=element_blank())
 ggsave("eda/NMDS_plot_kmeans2.pdf", width=5, height=3.5)
+nmds.plot.mns <- nmds.plot.df %>% group_by(CatFact) %>% 
+  summarise(MDS1_sd=sd(MDS1, na.rm=T), MDS2_sd=sd(MDS2, na.rm=T),
+            MDS1_se=MDS1_sd/sqrt(sum(!is.na(MDS1))),
+            MDS2_se=MDS2_sd/sqrt(sum(!is.na(MDS2))),
+            MDS1=mean(MDS1, na.rm=T), MDS2=mean(MDS2, na.rm=T))
+ggplot(nmds.plot.df, aes(x=MDS1, y=MDS2, colour=CatFact)) + 
+  ggConvexHull::geom_convexhull(fill=NA, size=0.25) +
+  geom_point(alpha=0.7) + 
+  geom_point(data=nmds.plot.mns, size=4) +
+  geom_segment(data=nmds.plot.mns, size=0.75,
+               aes(x=MDS1, xend=MDS1, y=MDS2-2*MDS2_se, yend=MDS2+2*MDS2_se)) +
+  geom_segment(data=nmds.plot.mns, size=0.75,
+               aes(x=MDS1-2*MDS1_se, xend=MDS1+2*MDS1_se, y=MDS2, yend=MDS2)) +
+  scale_colour_manual("Utilisation de terroire", 
+                      values=c("wheat3", "gray60", "forestgreen", "chartreuse3",
+                               "gray30", "mediumpurple3"), 
+                      labels=c("Pâturage", "Transport", "Prairie", 
+                               "Agriculture", "Zone construite",
+                               "Vignoble ou verger")) +
+  theme(panel.grid=element_blank()) 
+ggsave("~/Desktop/opfo_web_figs/human_landuse_NMDS.pdf", width=7, height=5)
 
 # 3d 
 car::scatter3d(nmds.plot.df$MDS1, nmds.plot.df$MDS2, nmds.plot.df$MDS3, 
@@ -834,6 +1284,9 @@ car::scatter3d(nmds.plot.df$MDS1, nmds.plot.df$MDS2, nmds.plot.df$MDS3,
                point.col=col_mtn[as.numeric(nmds.plot.df$el_cat)], surface=F)
 car::scatter3d(nmds.plot.df$MDS1, nmds.plot.df$MDS2, nmds.plot.df$MDS3, 
                point.col=col_mtn[as.numeric(nmds.plot.df$kmns_2)], surface=F)
+car::scatter3d(nmds.plot.df$MDS1, nmds.plot.df$MDS2, nmds.plot.df$MDS3, 
+               point.col=c("wheat3", "gray60", "forestgreen", "chartreuse3",
+                           "gray30", "mediumpurple3")[as.numeric(nmds.plot.df$CatFact)], surface=F)
 
 
 ggplot(st_as_sf(nmds.site.df), aes(fill=kmns_2)) + geom_sf()
