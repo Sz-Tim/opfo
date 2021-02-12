@@ -83,23 +83,26 @@ load_ant_data <- function(structured=TRUE, public=TRUE,
   }
   # load public inventory samples
   if(public) {
-    df_p <- gs_read(ss=gs_url("https://docs.google.com/spreadsheets/d/19mDCH-A7mmNwelXypK7ixpfcQGzS4x3o7w4MJU8-hJc/edit?usp=sharing"), verbose=F, ws="samples") %>%
-      rename(TubeNo=CATALOGUENUMBER, SPECIESID=SPECISID)
+    df_p <- gs_read(ss=gs_url("https://docs.google.com/spreadsheets/d/19mDCH-A7mmNwelXypK7ixpfcQGzS4x3o7w4MJU8-hJc/edit?usp=sharing"), verbose=F, ws="Samples",
+                    locale=readr::locale(decimal_mark=",")) %>%
+      rename(TubeNo=CATALOGUENUMBER, SPECIESID=SPECISID) %>%
+      mutate(SampleDate=lubridate::ymd(DATECOLLECTION))
     df_p <- rbind(df_p %>% filter(is.na(LATITUDE)) %>%
                     filter(!is.na(SWISSCOORDINATE_X)) %>%
                     st_as_sf(coords=paste0("SWISSCOORDINATE_", c("X", "Y"))) %>%
-                    select(TubeNo, SPECIESID) %>%
+                    select(TubeNo, SPECIESID, SampleDate) %>%
                     st_set_crs(21781), 
                   df_p %>% filter(!is.na(LONGITUDE)) %>%
                     st_as_sf(coords=c("LONGITUDE", "LATITUDE")) %>% 
-                    select(TubeNo, SPECIESID) %>% 
+                    select(TubeNo, SPECIESID, SampleDate) %>% 
                     st_set_crs(4326) %>% st_transform(21781))
     if(clean_spp) df_p <- clean_species_names(df_p)
   }
   # combine
   if(exists("df_p") && exists("df_s")) {
     df_all <- rbind(df_p %>% mutate(source="p"),
-                    df_s %>% select(TubeNo, SPECIESID) %>% mutate(source="s"))
+                    df_s %>% select(TubeNo, SPECIESID, SampleDate) %>% 
+                      mutate(source="s"))
   } else {
     df_all <- NULL
   }
