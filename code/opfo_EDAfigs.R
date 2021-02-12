@@ -77,6 +77,7 @@ site.sf <- full_join(agg_str_site_data(),
                      by="BDM") %>%
   mutate(Sample_date=lubridate::yday(lubridate::dmy(Sample_date)))
 plot.sf <- plot.sf %>% mutate(region=site.sf$region[match(plot.sf$BDM, site.sf$BDM)])
+ant$all <- ant$all %>% mutate(el=raster::extract(dem, .))
 
 
 #--- colors
@@ -84,6 +85,10 @@ blue <- "#0571b0"
 red <- "#ca0020"
 col_region <- c(Alps="#56B4E9", Jura="#E69F00", Low="#666666")
 col_mtn <- c(Low="#666666", Mtn="#009E73")
+col_el <- viridis::viridis_pal()(nrow(site.sf))
+col_topo <- topo.colors(nrow(site.sf))
+col_div <- c(colorRampPalette(c("darkblue", "white"))(22), 
+             colorRampPalette(c("white", "darkred"))(22))
 
 
 
@@ -96,6 +101,31 @@ col_mtn <- c(Low="#666666", Mtn="#009E73")
 ##
 
 # Map of structured samples
+pdf("eda/map_ants_BDM_el.pdf", height=7, width=7)
+par(mar=c(0.5, 0.5, 0, 0))
+raster::plot(dem, legend=F, axes=F, box=F,
+             col=colorRampPalette(c("gray60", "white"))(255))
+raster::scalebar(d=10000, xy=c(570000, 162000), below="km", 
+                 label=c(0, 5, 10), type="bar")
+plot(VD, add=TRUE, lwd=0.5)
+plot(select(site.sf, el), add=TRUE, col=col_div[rank(site.sf$el)])
+legend(569000, 185000, title="Elevation (m)",
+       legend=round(c(min(site.sf$el), median(site.sf$el), max(site.sf$el))), 
+       fill=col_div[c(1, length(col_el)/2, length(col_el))], bty="n")
+dev.off()
+
+pdf("eda/map_ants_BDM_elCat.pdf", height=7, width=7)
+par(mar=c(0.5, 0.5, 0, 0))
+raster::plot(dem, legend=F, axes=F, box=F,
+             col=colorRampPalette(c("gray60", "white"))(255))
+raster::scalebar(d=10000, xy=c(570000, 162000), below="km", 
+                 label=c(0, 5, 10), type="bar")
+plot(VD, add=TRUE, lwd=0.5)
+plot(select(site.sf, el), add=TRUE, col=col_mtn[(site.sf$el<1000) + 1])
+legend(569000, 185000, title="Elevation Group",
+       legend=names(col_mtn), fill=col_mtn, bty="n")
+dev.off()
+
 pdf("eda/map_ants_BDM_region.pdf", height=7, width=7)
 par(mar=c(0.5, 0.5, 0, 0))
 raster::plot(dem, legend=F, axes=F, box=F,
@@ -165,15 +195,30 @@ ggplot(grid.W, aes(fill=!is.na(nTube) & nTube>9)) + geom_sf(colour="gray70") +
 ggsave("eda/map_ants_public_n10+.pdf", height=7, width=7)
 
 # Map of all samples
-pdf("eda/map_ants_all.pdf", height=7, width=7)
+pdf("eda/map_ants_all_BDM.pdf", height=7, width=7)
 par(mar=c(0.5, 0.5, 0, 0))
 raster::plot(dem, legend=F, axes=F, box=F,
-             col=colorRampPalette(c("gray60", "white"))(255))
+             col=colorRampPalette(c("gray70", "white"))(255))
 raster::scalebar(d=10000, xy=c(570000, 162000), below="km", 
                  label=c(0, 5, 10), type="bar")
 plot(VD, add=TRUE, lwd=0.5)
-plot(select(ant$pub, TubeNo), add=TRUE, col=rgb(.004,.422,.348,0.5), cex=0.75)
-plot(select(site.sf, region), add=TRUE, col=NA, fill=NA)
+plot(select(ant$pub, TubeNo), add=TRUE, 
+     col=rgb(5/256,113/256,176/256,0.75), cex=0.4)
+plot(select(site.sf, region), add=TRUE, col=NA, fill=NA, 
+     border=rgb(202/256,0/256,32/256), lwd=1.5)
+dev.off()
+
+pdf("eda/map_ants_all_pts.pdf", height=7, width=7)
+par(mar=c(0.5, 0.5, 0, 0))
+raster::plot(dem, legend=F, axes=F, box=F,
+             col=colorRampPalette(c("gray70", "white"))(255))
+raster::scalebar(d=10000, xy=c(570000, 162000), below="km", 
+                 label=c(0, 5, 10), type="bar")
+plot(VD, add=TRUE, lwd=0.5)
+plot(select(ant$pub, TubeNo), add=TRUE, 
+     col=rgb(5/256,113/256,176/256,0.75), cex=0.4)
+plot(select(ant$str, TubeNo), add=TRUE, 
+     col=rgb(202/256,0/256,32/256,0.75), cex=0.4)
 dev.off()
 
 # Map of binned elevation
