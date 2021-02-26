@@ -14,7 +14,7 @@ str_type="all"
 clean_spp <- TRUE
 
 # load genetic IDs for Tetramorium
-tetr.id <- read_tsv("data/Tetramorium_public_mtDNA_ID.txt",
+tetr.id <- read_tsv("data/DNA_ID_orig/Tetramorium_public_mtDNA_ID.txt",
                     col_names=c("TubeNo", "SPECIESID"))
 # load structured samples
 df_s <- gs_read(ss=gs_title("Scientific Ant Inventory VD"), ws="Transfer", 
@@ -106,7 +106,8 @@ write_csv(not_in_id, "~/Desktop/Tetr_tubes_without_mtDNA.csv")
 
 
 ########---- SAVE CLEAN FILE
-write_csv(tetr.clean, "data/Tetramorium_public_mtDNA_ID_CLEAN.csv")
+# commented since no longer final
+# write_csv(tetr.clean, "data/DNA_ID_clean/Tetr_mtDNA_ID.csv")
 
 
 
@@ -133,7 +134,7 @@ str_type="all"
 clean_spp <- TRUE
 
 # load genetic IDs for Tetramorium
-tetr.id <- read_delim("data/Tetramorium_ID_GL.txt", delim=" ") %>%
+tetr.id <- read_delim("data/DNA_ID_orig/Tetramorium_ID_GL.txt", delim=" ") %>%
   rename(TubeNo=CATALOGUENUMBER)
 # load structured samples
 df_s <- gs_read(ss=gs_title("Scientific Ant Inventory VD"), ws="Transfer", 
@@ -239,7 +240,8 @@ write_csv(bind_rows(not_in_id_p %>%
 
 
 ########---- SAVE CLEAN FILE
-write_csv(tetr.clean, "data/Tetramorium_public_mtDNA_ID_CLEAN.csv")
+# Commented out since no longer final
+# write_csv(tetr.clean, "data/DNA_ID_clean/Tetr_mtDNA_ID.csv")
 
 
 Tetr <- c("tot_p"=sum(df_p$GENUSID=="Tetr"),
@@ -275,7 +277,7 @@ str_type="all"
 clean_spp <- TRUE
 
 # load genetic IDs for Tetramorium
-tetr.id <- read_delim("data/Tetramorium_ID_GL_2.txt", delim=" ") %>%
+tetr.id <- read_delim("data/DNA_ID_orig/Tetramorium_ID_GL_2.txt", delim=" ") %>%
   rename(TubeNo=CATALOGUENUMBER)
 # load structured samples
 df_s <- gs_read(ss=gs_title("Scientific Ant Inventory VD"), ws="Transfer", 
@@ -385,7 +387,7 @@ write_csv(bind_rows(not_in_id_p %>%
 
 
 ########---- SAVE CLEAN FILE
-write_csv(tetr.clean, "data/Tetramorium_public_mtDNA_ID_CLEAN.csv")
+write_csv(tetr.clean, "data/DNA_ID_clean/Tetr_mtDNA_ID.csv")
 
 
 Tetr <- c("tot_p"=sum(df_p$GENUSID=="Tetr"),

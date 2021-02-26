@@ -12,20 +12,21 @@ clean_species_names <- function(ant.df) {
   # remove rows with SPECIESID as: 
   #   NA
   #   espece exotique
-  #   Camp_herc/lign (few obs; 30+ for each spp)
-  #   Lasi_emar/brun (few obs; 200+ for each spp)
-  #   Lasi_nige/plat (few obs; 40+ for each spp)
-  #   Lept_gred/musc (few obs; few for each spp)
+  #   Camp_herc/lign (5 obs; 30/122 for each spp)
+  #   Lasi_emar/brun (2 obs; 488/82 for each spp)
+  #   Lasi_nige/plat (15 obs; 1567/203 for each spp)
+  #   Lasi_sp
+  #   Lept_gred/musc (3 obs; 3/1 for each spp)
   ant.df <- ant.df %>% 
     filter(!is.na(SPECIESID)) %>%
     filter(SPECIESID != "Espèce exotique") %>%
     filter(SPECIESID != "Camp_herc/lign") %>%
     filter(SPECIESID != "Lasi_emar/brun") %>%
     filter(SPECIESID != "Lasi_nige/plat") %>%
+    filter(SPECIESID != "Lasi_sp") %>%
     filter(SPECIESID != "Lept_gred/musc")
   
   # fix typos
-  ant.df$SPECIESID[ant.df$SPECIESID=="Form Copt"] <- "Form_copt"
   ant.df$SPECIESID[ant.df$SPECIESID=="LasI_para"] <- "Lasi_para"
   ant.df$SPECIESID[ant.df$SPECIESID=="Form_lugubris/paralugubris"] <- "Form_lugu/para"
   
@@ -46,9 +47,6 @@ clean_species_names <- function(ant.df) {
   #   Temnothorax unifasciatus group
   ant.df$SPECIESID[ant.df$SPECIESID=="Temn_unif gr"] <- "Temn_unif-GR"
   ant.df$SPECIESID[ant.df$SPECIESID=="Temn_unif"] <- "Temn_unif-GR"
-  #   Temnothorax caespitum group
-  ant.df$SPECIESID[ant.df$SPECIESID=="Tetr_caes gr"] <- "Tetr_caes-GR"
-  ant.df$SPECIESID[ant.df$SPECIESID=="Tetr_caes"] <- "Tetr_caes-GR"
   return(ant.df)
 }
 
@@ -62,12 +60,21 @@ clean_species_names <- function(ant.df) {
 #' @param public TRUE; load public inventory?
 #' @param str_type "all"; type of structured samples to include (all, soil,
 #'   transect, tree)
+#' @param clean_spp FALSE; standardize species names according to settings in
+#'   in clean_spp_names()
+#' @param full_pb FALSE; include all original columns in .$pub
+#' @param DNA_ID named vector, where names are genus abbreviations and values
+#'   are file locations to the cleaned csv's created by `code/opfo_geneticQC.R`
 #' 
 #' @return list with each dataframe and a (simplified) combined dataframe
 
 load_ant_data <- function(structured=TRUE, public=TRUE, 
-                          str_type="all", clean_spp=FALSE) {
+                          str_type="all", clean_spp=FALSE, full_pub=FALSE,
+                          DNA_ID=c(Tetr="data/DNA_ID_clean/Tetr_mtDNA_ID.csv")) {
   library(tidyverse); library(sf); library(googlesheets)
+  # load genetic IDs 
+  dna_ids <- map(DNA_ID, read_csv)
+  
   # load structured samples
   if(structured) {
     df_s <- gs_read(ss=gs_title("Scientific Ant Inventory VD"), ws="Transfer", 
@@ -75,9 +82,20 @@ load_ant_data <- function(structured=TRUE, public=TRUE,
       filter(!is.na(lon)) %>% 
       rename(TubeNo=CATALOGUENUMBER, Plot_id=PLOT) %>%
       mutate(Plot_id=as.character(Plot_id),
-             SampleDate=lubridate::dmy(SampleDate)) %>%
+             SampleDate=lubridate::dmy(SampleDate),
+             GEN_abbr=str_split_fixed(SPECIESID, "_", 2)[,1]) %>%
       st_as_sf(coords=c("lon", "lat")) %>%
       st_set_crs(4326) %>% st_transform(21781)
+    # assign genetic IDs
+    for(i in seq_along(dna_ids)) {
+      dna_genus_unkSpp <- filter(df_s, GEN_abbr==names(dna_ids)[i] &
+                                   !TubeNo %in% dna_ids[[i]]$TubeNo)$TubeNo
+      dna_str_tubes <- filter(dna_ids[[i]], 
+                              grepl("999[0-9][0-9][0-9][0-9]", TubeNo))
+      dna_genus_index <- match(dna_str_tubes$TubeNo, df_s$TubeNo)
+      df_s$SPECIESID[dna_genus_index] <- dna_str_tubes$ID
+      df_s <- filter(df_s, !TubeNo %in% dna_genus_unkSpp)
+    }
     if(str_type!="all") df_s <- filter(df_s, TypeOfSample==str_type)
     if(clean_spp) df_s <- clean_species_names(df_s)
   }
@@ -87,7 +105,30 @@ load_ant_data <- function(structured=TRUE, public=TRUE,
                     locale=readr::locale(decimal_mark=",")) %>%
       rename(TubeNo=CATALOGUENUMBER, SPECIESID=SPECISID) %>%
       mutate(SampleDate=lubridate::ymd(DATECOLLECTION))
-    df_p <- rbind(df_p %>% filter(is.na(LATITUDE)) %>%
+    # assign genetic IDs
+    for(i in seq_along(dna_ids)) {
+      dna_genus_unkSpp <- filter(df_p, GENUSID==names(dna_ids)[i] &
+                                   !TubeNo %in% dna_ids[[i]]$TubeNo)$TubeNo
+      dna_pub_tubes <- filter(dna_ids[[i]], 
+                              !grepl("999[0-9][0-9][0-9][0-9]", TubeNo))
+      dna_genus_index <- match(dna_pub_tubes$TubeNo, df_p$TubeNo)
+      df_p$SPECIESID[dna_genus_index] <- dna_pub_tubes$ID
+      df_p <- filter(df_p, !TubeNo %in% dna_genus_unkSpp)
+    }
+    if(full_pub) {
+      df_p <- rbind(df_p %>% filter(is.na(LATITUDE)) %>%
+                      filter(!is.na(SWISSCOORDINATE_X)) %>%
+                      st_as_sf(coords=paste0("SWISSCOORDINATE_", c("X", "Y")), 
+                               remove=F) %>%
+                      st_set_crs(21781) %>%
+                      mutate(Long=SWISSCOORDINATE_X, Lat=SWISSCOORDINATE_Y), 
+                    df_p %>% filter(!is.na(LONGITUDE)) %>%
+                      st_as_sf(coords=c("LONGITUDE", "LATITUDE"),
+                               remove=F) %>% 
+                      st_set_crs(4326) %>% st_transform(21781) %>%
+                      mutate(Long=LONGITUDE, Lat=LATITUDE))
+    } else {
+      df_p <- rbind(df_p %>% filter(is.na(LATITUDE)) %>%
                     filter(!is.na(SWISSCOORDINATE_X)) %>%
                     st_as_sf(coords=paste0("SWISSCOORDINATE_", c("X", "Y"))) %>%
                     select(TubeNo, SPECIESID, SampleDate) %>%
@@ -96,11 +137,13 @@ load_ant_data <- function(structured=TRUE, public=TRUE,
                     st_as_sf(coords=c("LONGITUDE", "LATITUDE")) %>% 
                     select(TubeNo, SPECIESID, SampleDate) %>% 
                     st_set_crs(4326) %>% st_transform(21781))
+    }
     if(clean_spp) df_p <- clean_species_names(df_p)
   }
   # combine
   if(exists("df_p") && exists("df_s")) {
-    df_all <- rbind(df_p %>% mutate(source="p"),
+    df_all <- rbind(df_p %>% select(TubeNo, SPECIESID, SampleDate) %>% 
+                      mutate(source="p"),
                     df_s %>% select(TubeNo, SPECIESID, SampleDate) %>% 
                       mutate(source="s"))
   } else {
