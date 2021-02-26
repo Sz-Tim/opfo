@@ -63,17 +63,21 @@ clean_species_names <- function(ant.df) {
 #' @param clean_spp FALSE; standardize species names according to settings in
 #'   in clean_spp_names()
 #' @param full_pb FALSE; include all original columns in .$pub
-#' @param DNA_ID named vector, where names are genus abbreviations and values
-#'   are file locations to the cleaned csv's created by `code/opfo_geneticQC.R`
+#' @param DNA_ID TRUE; update species names with genetic IDs?
 #' 
 #' @return list with each dataframe and a (simplified) combined dataframe
 
 load_ant_data <- function(structured=TRUE, public=TRUE, 
                           str_type="all", clean_spp=FALSE, full_pub=FALSE,
-                          DNA_ID=c(Tetr="data/DNA_ID_clean/Tetr_mtDNA_ID.csv")) {
+                          DNA_ID=TRUE) {
   library(tidyverse); library(sf); library(googlesheets)
   # load genetic IDs 
-  dna_ids <- map(DNA_ID, read_csv)
+  if(DNA_ID) {
+    dna_dir <- "~/Documents/unil/opfo_main/1_opfo/data/DNA_ID_clean/"
+    dna_f <- setNames(dir(dna_dir, full.names=T), 
+                      str_split_fixed(dir(dna_dir), "_", 2)[,1])
+    dna_ids <- map(dna_f, read_csv)
+  }
   
   # load structured samples
   if(structured) {
