@@ -34,10 +34,6 @@ clean_species_names <- function(ant.df) {
   #   Lasius alienus group
   ant.df$SPECIESID[ant.df$SPECIESID=="Lasi_alie gr"] <- "Lasi_alie-GR"
   ant.df$SPECIESID[ant.df$SPECIESID=="Lasi_alie"] <- "Lasi_alie-GR"
-  #   Tapinoma erraticum group
-  # ant.df$SPECIESID[ant.df$SPECIESID=="Tapi_erra/nige_gr"] <- "Tapi_erra-GR"
-  # ant.df$SPECIESID[ant.df$SPECIESID=="Tapi_nige_gr"] <- "Tapi_erra-GR"
-  # ant.df$SPECIESID[ant.df$SPECIESID=="Tapi_erra"] <- "Tapi_erra-GR"
   #   Temnothorax nylanderi group
   ant.df$SPECIESID[ant.df$SPECIESID=="Temn_nyla gr"] <- "Temn_nyla-GR"
   ant.df$SPECIESID[ant.df$SPECIESID=="Temn_nyla"] <- "Temn_nyla-GR"
