@@ -1,5 +1,11 @@
+
+
 library(tidyverse); library(sf); library(googlesheets)
 
+
+
+
+# Tetramorium
 
 ################################################################################
 ####---- Original correction with data/Tetramorium_public_mtDNA_ID.txt
@@ -412,3 +418,387 @@ table(bind_rows(not_in_id_p %>%
 
 
 
+
+
+
+
+
+
+
+
+
+
+# Tapinoma
+
+################################################################################
+####---- Original correction with data/DNA_ID_orig/Tapinoma_ID.txt
+################################################################################
+
+########---- STEP THROUGH LOADING FUNCTION
+
+# copied from 00_fn.R::load_ant_data()
+structured=TRUE
+public=TRUE
+str_type="all"
+clean_spp <- TRUE
+
+# load genetic IDs for Tapinoma
+tapi.id <- read_tsv("data/DNA_ID_orig/Tapinoma_ID.txt", skip=1,
+                    col_names=c("TubeNo", "SPPMORPH", "SPECIESID"))
+# load structured samples
+df_s <- gs_read(ss=gs_title("Scientific Ant Inventory VD"), ws="Transfer", 
+                col_types=cols(PLOT=col_character())) %>%
+  filter(!is.na(lon)) %>% 
+  rename(TubeNo=CATALOGUENUMBER, Plot_id=PLOT) %>%
+  mutate(Plot_id=as.character(Plot_id),
+         SampleDate=lubridate::dmy(SampleDate)) %>%
+  st_as_sf(coords=c("lon", "lat")) %>%
+  st_set_crs(4326) %>% st_transform(21781)
+
+# load public inventory samples
+df_p <- gs_read(ss=gs_url("https://docs.google.com/spreadsheets/d/19mDCH-A7mmNwelXypK7ixpfcQGzS4x3o7w4MJU8-hJc/edit?usp=sharing"), verbose=F, ws="Samples",
+                locale=readr::locale(decimal_mark=",")) %>%
+  rename(TubeNo=CATALOGUENUMBER, SPECIESID=SPECISID) %>%
+  mutate(SampleDate=lubridate::ymd(DATECOLLECTION))
+
+
+
+
+
+
+########---- IDENTIFY MISMATCHES
+tapi.clean <- tapi.id
+
+
+# Find TubeNo in tetr.id, but not in database
+not_in_df <- filter(tapi.id, !TubeNo %in% df_p$TubeNo)
+nrow(not_in_df)
+sum(tapi.id$TubeNo %in% df_s$TubeNo)
+tapi.id %>% filter(!TubeNo %in% df_p$TubeNo) %>% filter(!TubeNo %in% df_s$TubeNo)
+# All tubes in tapi.id are in df_p or df_s
+
+
+# Find TubeNo in both, but that are not Tapi spp in database
+df_match_but_not_TapiSPID <- filter(df_p, TubeNo %in% tapi.clean$TubeNo) %>% 
+  filter(!grepl("Tapi", SPECIESID)) %>% 
+  select(RANG, TubeNo, SPECIESID, GENUSID)
+df_match_but_not_TapiSPID %>% print.AsIs
+# 5870 and 5879 are Tapi_spp in df_s, but have no genetic ID
+
+
+
+# Repeat for df_s: Find TubeNo in both, but that are not Tapi spp in database
+filter(df_s, TubeNo %in% tapi.clean$TubeNo) %>% 
+  filter(!grepl("Tapi", SPECIESID)) %>% 
+  select(TubeNo, SPECIESID, GENUSID)
+
+
+# Find TubeNo in database, but not in tapi.id
+not_in_id_p <- filter(df_p, GENUSID=="Tapi" & !TubeNo %in% tapi.clean$TubeNo)
+table(not_in_id_p$SPECIESID, useNA="ifany")
+cat(sum(df_p$GENUSID == "Tapi") - nrow(filter(tapi.clean, nchar(TubeNo) < 7)), 
+    "more tubes in database than ID file -- just not performed?")
+
+# Repeat for df_s: Find TubeNo in database, but not in tapi.id
+not_in_id_s <- filter(df_s, GENUSID=="Tapinoma" & !TubeNo %in% tapi.clean$TubeNo)
+table(not_in_id_s$SPECIESID, useNA="ifany")
+cat(sum(df_s$GENUSID == "Tapinoma") - nrow(filter(tapi.clean, nchar(TubeNo) == 7)), 
+    "more tubes in database than ID file -- just not performed?")
+
+
+# Genus mismatches -- are any IDs in tapi.id not Tapinoma?
+id_not_tapi <- filter(tapi.clean, !grepl("Tapi", SPECIESID, ))
+
+
+# Confirm that all tubes in id match either df_p or df_s
+sum(tapi.clean$TubeNo %in% df_p$TubeNo) + sum(tapi.clean$TubeNo %in% df_s$TubeNo)
+nrow(tapi.clean)
+
+write_csv(bind_rows(not_in_id_p %>% 
+                      select(TubeNo, SPECIESID, GENUSID), 
+                    st_set_geometry(not_in_id_s, NULL) %>% 
+                      select(TubeNo, SPECIESID, GENUSID)), 
+          "~/Desktop/temp/Tapi_tubes_without_mtDNA.csv")
+
+
+
+
+########---- SAVE CLEAN FILE
+write_csv(tapi.clean %>% select(TubeNo, SPECIESID) %>% rename(ID=SPECIESID), 
+          "data/DNA_ID_clean/Tapi_mtDNA_ID.csv")
+
+
+Tapi <- c("tot_p"=sum(df_p$GENUSID=="Tapi"),
+          "tot_s"=sum(df_s$GENUSID=="Tapinoma"),
+          "tot_id"=nrow(tapi.id),
+          "p_in_id"=sum(df_p$TubeNo %in% tapi.clean$TubeNo), 
+          "s_in_id"=sum(df_s$TubeNo %in% tapi.clean$TubeNo))
+cat("Total Tapinoma in databases: ", 
+    Tapi["tot_p"] + Tapi["tot_s"], "\n",
+    "Total Tapinoma in new file:  ", 
+    Tapi["tot_id"], "\n", 
+    "  Mismatch: ", Tapi["tot_p"] + Tapi["tot_s"] - Tapi["tot_id"], 
+    "\n\n", 
+    Tapi['tot_p']-Tapi['p_in_id'], " public Tapinoma without IDs", "\n",
+    Tapi['tot_s']-Tapi['s_in_id'], " structured Tapinoma without IDs", sep="")
+table(bind_rows(not_in_id_p %>% 
+                  select(TubeNo, SPECIESID), 
+                st_set_geometry(not_in_id_s, NULL) %>% 
+                  select(TubeNo, SPECIESID))$SPECIESID, useNA="ifany")
+
+
+
+
+
+
+
+
+
+# Camponotus
+
+################################################################################
+####---- Original correction with data/DNA_ID_orig/Camponotus_ID.csv
+################################################################################
+
+########---- STEP THROUGH LOADING FUNCTION
+
+# copied from 00_fn.R::load_ant_data()
+structured=TRUE
+public=TRUE
+str_type="all"
+clean_spp <- TRUE
+
+# load genetic IDs for Camponotus
+camp.id <- read_delim("data/DNA_ID_orig/Camponotus_ID.csv", ";") %>%
+  mutate(TubeNo=CATALOGUENUMBER, SPECIESID=SPECIESID_GENETIC) %>% 
+  select(TubeNo, SPECIESID)
+# load structured samples
+df_s <- gs_read(ss=gs_title("Scientific Ant Inventory VD"), ws="Transfer", 
+                col_types=cols(PLOT=col_character())) %>%
+  filter(!is.na(lon)) %>% 
+  rename(TubeNo=CATALOGUENUMBER, Plot_id=PLOT) %>%
+  mutate(Plot_id=as.character(Plot_id),
+         SampleDate=lubridate::dmy(SampleDate)) %>%
+  st_as_sf(coords=c("lon", "lat")) %>%
+  st_set_crs(4326) %>% st_transform(21781)
+
+# load public inventory samples
+df_p <- gs_read(ss=gs_url("https://docs.google.com/spreadsheets/d/19mDCH-A7mmNwelXypK7ixpfcQGzS4x3o7w4MJU8-hJc/edit?usp=sharing"), verbose=F, ws="Samples",
+                locale=readr::locale(decimal_mark=",")) %>%
+  rename(TubeNo=CATALOGUENUMBER, SPECIESID=SPECISID) %>%
+  mutate(SampleDate=lubridate::ymd(DATECOLLECTION))
+
+
+
+
+
+
+########---- IDENTIFY MISMATCHES
+camp.clean <- camp.id
+
+
+# Find TubeNo in tetr.id, but not in database
+not_in_df <- filter(camp.id, !TubeNo %in% df_p$TubeNo)
+nrow(not_in_df)
+sum(camp.id$TubeNo %in% df_s$TubeNo)
+camp.id %>% filter(!TubeNo %in% df_p$TubeNo) %>% filter(!TubeNo %in% df_s$TubeNo)
+# All tubes in tapi.id are in df_p or df_s
+
+
+# Find TubeNo in both, but that are not Camp spp in database
+df_match_but_not_CampSPID <- filter(df_p, TubeNo %in% camp.clean$TubeNo) %>% 
+  filter(!grepl("Camp", SPECIESID)) %>% 
+  select(RANG, TubeNo, SPECIESID, GENUSID)
+df_match_but_not_CampSPID %>% print.AsIs
+# All tubes are Camponotus
+
+
+
+# Repeat for df_s: Find TubeNo in both, but that are not Camp spp in database
+filter(df_s, TubeNo %in% camp.clean$TubeNo) %>% 
+  filter(!grepl("Camp", SPECIESID)) %>% 
+  select(TubeNo, SPECIESID, GENUSID)
+
+
+# Find TubeNo in database, but not in camp.id
+not_in_id_p <- filter(df_p, GENUSID=="Camp" & !TubeNo %in% camp.clean$TubeNo)
+table(not_in_id_p$SPECIESID, useNA="ifany")
+cat(sum(df_p$GENUSID == "Camp") - nrow(filter(camp.clean, nchar(TubeNo) < 7)), 
+    "more tubes in database than ID file -- just not performed?")
+
+# Repeat for df_s: Find TubeNo in database, but not in camp.id
+not_in_id_s <- filter(df_s, GENUSID=="Camponotus" & !TubeNo %in% camp.clean$TubeNo)
+table(not_in_id_s$SPECIESID, useNA="ifany")
+cat(sum(df_s$GENUSID == "Camponotus") - nrow(filter(camp.clean, nchar(TubeNo) == 7)), 
+    "more tubes in database than ID file -- just not performed?")
+
+
+# Genus mismatches -- are any IDs in camp.id not Camponotus?
+id_not_camp <- filter(camp.clean, !grepl("Camp", SPECIESID))
+id_not_camp
+
+
+# Confirm that all tubes in id match either df_p or df_s
+sum(camp.clean$TubeNo %in% df_p$TubeNo) + sum(camp.clean$TubeNo %in% df_s$TubeNo)
+nrow(camp.clean)
+
+write_csv(bind_rows(not_in_id_p %>% 
+                      select(TubeNo, SPECIESID, GENUSID), 
+                    st_set_geometry(not_in_id_s, NULL) %>% 
+                      select(TubeNo, SPECIESID, GENUSID)), 
+          "~/Desktop/temp/Camp_tubes_without_mtDNA.csv")
+
+
+
+
+########---- SAVE CLEAN FILE
+write_csv(camp.clean %>% select(TubeNo, SPECIESID) %>% rename(ID=SPECIESID), 
+          "data/DNA_ID_clean/Camp_mtDNA_ID.csv")
+
+
+Camp <- c("tot_p"=sum(df_p$GENUSID=="Camp"),
+          "tot_s"=sum(df_s$GENUSID=="Camponotus"),
+          "tot_id"=nrow(camp.id),
+          "p_in_id"=sum(df_p$TubeNo %in% camp.clean$TubeNo), 
+          "s_in_id"=sum(df_s$TubeNo %in% camp.clean$TubeNo))
+cat("Total Camponotus in databases: ", 
+    Camp["tot_p"] + Camp["tot_s"], "\n",
+    "Total Camponotus in new file:  ", 
+    Camp["tot_id"], "\n", 
+    "  Mismatch: ", Camp["tot_p"] + Camp["tot_s"] - Camp["tot_id"], 
+    "\n\n", 
+    Camp['tot_p']-Camp['p_in_id'], " public Camponotus without IDs", "\n",
+    Camp['tot_s']-Camp['s_in_id'], " structured Camponotus without IDs", sep="")
+table(bind_rows(not_in_id_p %>% 
+                  select(TubeNo, SPECIESID), 
+                st_set_geometry(not_in_id_s, NULL) %>% 
+                  select(TubeNo, SPECIESID))$SPECIESID, useNA="ifany")
+
+
+
+
+
+
+
+
+
+
+# Temnothorax
+
+################################################################################
+####---- Original correction with data/DNA_ID_orig/Temnothorax_ID.csv
+################################################################################
+
+########---- STEP THROUGH LOADING FUNCTION
+
+# copied from 00_fn.R::load_ant_data()
+structured=TRUE
+public=TRUE
+str_type="all"
+clean_spp <- TRUE
+
+# load genetic IDs for Temnothorax
+temn.id <- read_delim("data/DNA_ID_orig/Temno_ID.csv", ";") %>%
+  mutate(TubeNo=CATALOGUENUMBER, SPECIESID=SPECIESID_GENETIC) %>% 
+  select(TubeNo, SPECIESID)
+# load structured samples
+df_s <- gs_read(ss=gs_title("Scientific Ant Inventory VD"), ws="Transfer", 
+                col_types=cols(PLOT=col_character())) %>%
+  filter(!is.na(lon)) %>% 
+  rename(TubeNo=CATALOGUENUMBER, Plot_id=PLOT) %>%
+  mutate(Plot_id=as.character(Plot_id),
+         SampleDate=lubridate::dmy(SampleDate)) %>%
+  st_as_sf(coords=c("lon", "lat")) %>%
+  st_set_crs(4326) %>% st_transform(21781)
+
+# load public inventory samples
+df_p <- gs_read(ss=gs_url("https://docs.google.com/spreadsheets/d/19mDCH-A7mmNwelXypK7ixpfcQGzS4x3o7w4MJU8-hJc/edit?usp=sharing"), verbose=F, ws="Samples",
+                locale=readr::locale(decimal_mark=",")) %>%
+  rename(TubeNo=CATALOGUENUMBER, SPECIESID=SPECISID) %>%
+  mutate(SampleDate=lubridate::ymd(DATECOLLECTION))
+
+
+
+
+
+
+########---- IDENTIFY MISMATCHES
+temn.clean <- temn.id
+
+
+# Find TubeNo in tetr.id, but not in database
+not_in_df <- filter(temn.id, !TubeNo %in% df_p$TubeNo)
+nrow(not_in_df)
+sum(temn.id$TubeNo %in% df_s$TubeNo)
+temn.id %>% filter(!TubeNo %in% df_p$TubeNo) %>% filter(!TubeNo %in% df_s$TubeNo)
+# All tubes in temn.id are in df_p or df_s
+
+
+# Find TubeNo in both, but that are not Temn spp in database
+df_match_but_not_TemnSPID <- filter(df_p, TubeNo %in% temn.clean$TubeNo) %>% 
+  filter(!grepl("Temn", SPECIESID)) %>% 
+  select(RANG, TubeNo, SPECIESID, GENUSID)
+df_match_but_not_TemnSPID %>% print.AsIs
+# All tubes are Temnothorax
+
+
+
+# Repeat for df_s: Find TubeNo in both, but that are not Temn spp in database
+filter(df_s, TubeNo %in% temn.clean$TubeNo) %>% 
+  filter(!grepl("Temn", SPECIESID)) %>% 
+  select(TubeNo, SPECIESID, GENUSID)
+
+
+# Find TubeNo in database, but not in temn.id
+not_in_id_p <- filter(df_p, GENUSID=="Temn" & !TubeNo %in% temn.clean$TubeNo)
+table(not_in_id_p$SPECIESID, useNA="ifany")
+cat(sum(df_p$GENUSID == "Temn") - nrow(filter(temn.clean, nchar(TubeNo) < 7)), 
+    "more tubes in database than ID file -- just not performed?")
+
+# Repeat for df_s: Find TubeNo in database, but not in temn.id
+not_in_id_s <- filter(df_s, GENUSID=="Temnothorax" & !TubeNo %in% temn.clean$TubeNo)
+table(not_in_id_s$SPECIESID, useNA="ifany")
+cat(sum(df_s$GENUSID == "Temnothorax") - nrow(filter(temn.clean, nchar(TubeNo) == 7)), 
+    "more tubes in database than ID file -- just not performed?")
+
+
+# Genus mismatches -- are any IDs in temn.id not Temnothorax?
+id_not_temn <- filter(temn.clean, !grepl("Temn", SPECIESID))
+id_not_temn
+
+
+# Confirm that all tubes in id match either df_p or df_s
+sum(temn.clean$TubeNo %in% df_p$TubeNo) + sum(temn.clean$TubeNo %in% df_s$TubeNo)
+nrow(temn.clean)
+
+write_csv(bind_rows(not_in_id_p %>% 
+                      select(TubeNo, SPECIESID, GENUSID), 
+                    st_set_geometry(not_in_id_s, NULL) %>% 
+                      select(TubeNo, SPECIESID, GENUSID)), 
+          "~/Desktop/temp/Temn_tubes_without_mtDNA.csv")
+
+
+
+
+########---- SAVE CLEAN FILE
+write_csv(temn.clean %>% select(TubeNo, SPECIESID) %>% rename(ID=SPECIESID), 
+          "data/DNA_ID_clean/Temn_mtDNA_ID.csv")
+
+
+Temn <- c("tot_p"=sum(df_p$GENUSID=="Temn"),
+          "tot_s"=sum(df_s$GENUSID=="Temnothorax"),
+          "tot_id"=nrow(temn.id),
+          "p_in_id"=sum(df_p$TubeNo %in% temn.clean$TubeNo), 
+          "s_in_id"=sum(df_s$TubeNo %in% temn.clean$TubeNo))
+cat("Total Temnothorax in databases: ", 
+    Temn["tot_p"] + Temn["tot_s"], "\n",
+    "Total Temnothorax in new file:  ", 
+    Temn["tot_id"], "\n", 
+    "  Mismatch: ", Temn["tot_p"] + Temn["tot_s"] - Temn["tot_id"], 
+    "\n\n", 
+    Temn['tot_p']-Temn['p_in_id'], " public Temnothorax without IDs", "\n",
+    Temn['tot_s']-Temn['s_in_id'], " structured Temnothorax without IDs", sep="")
+table(bind_rows(not_in_id_p %>% 
+                  select(TubeNo, SPECIESID), 
+                st_set_geometry(not_in_id_s, NULL) %>% 
+                  select(TubeNo, SPECIESID))$SPECIESID, useNA="ifany")
