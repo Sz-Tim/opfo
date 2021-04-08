@@ -24,7 +24,8 @@ clean_species_names <- function(ant.df) {
     filter(SPECIESID != "Lasi_emar/brun") %>%
     filter(SPECIESID != "Lasi_nige/plat") %>%
     filter(SPECIESID != "Lasi_sp") %>%
-    filter(SPECIESID != "Lept_gred/musc")
+    filter(SPECIESID != "Lept_gred/musc") %>%
+    filter(SPECIESID != "Tapi_nige_gr")
   
   # fix typos
   ant.df$SPECIESID[ant.df$SPECIESID=="LasI_para"] <- "Lasi_para"
@@ -34,6 +35,8 @@ clean_species_names <- function(ant.df) {
   #   Lasius alienus group
   ant.df$SPECIESID[ant.df$SPECIESID=="Lasi_alie gr"] <- "Lasi_alie-GR"
   ant.df$SPECIESID[ant.df$SPECIESID=="Lasi_alie"] <- "Lasi_alie-GR"
+  #   Tapinoma erra/niger gr == erra by DNA (98%)
+  ant.df$SPECIESID[ant.df$SPECIESID=="Tapi_erra/nige_gr"] <- "Tapi_erra"
   #   Temnothorax nylanderi group
   ant.df$SPECIESID[ant.df$SPECIESID=="Temn_nyla gr"] <- "Temn_nyla-GR"
   ant.df$SPECIESID[ant.df$SPECIESID=="Temn_nyla"] <- "Temn_nyla-GR"
@@ -86,23 +89,25 @@ load_ant_data <- function(structured=TRUE, public=TRUE,
              GEN_abbr=str_split_fixed(SPECIESID, "_", 2)[,1]) %>%
       st_as_sf(coords=c("lon", "lat")) %>%
       st_set_crs(4326) %>% st_transform(21781)
-    # assign genetic IDs
-    for(i in seq_along(dna_ids)) {
-      dna_genus_unkSpp <- filter(df_s, GEN_abbr==names(dna_ids)[i] &
-                                   !TubeNo %in% dna_ids[[i]]$TubeNo)$TubeNo
-      dna_str_tubes <- filter(dna_ids[[i]], 
-                              grepl("999[0-9][0-9][0-9][0-9]", TubeNo))
-      dna_genus_index <- match(dna_str_tubes$TubeNo, df_s$TubeNo)
-      df_s$SPECIESID[dna_genus_index] <- dna_str_tubes$ID
-      if(names(dna_ids)[i] %in% c("Camp", "Temn")) {
-        # Use morphological IDs for Camp,Temno when genetic ID is unavailable
-        # Remove only NA species or Genus spp
-        dna_genus_unkSpp <- filter(df_s, TubeNo %in% dna_genus_unkSpp & 
-                                     (is.na(SPECIESID) | 
-                                        SPECIESID==names(dna_ids)[i]))
-      } 
-      # Remove tubes without IDs
-      df_s <- filter(df_s, !TubeNo %in% dna_genus_unkSpp)
+    if(DNA_ID) {
+      # assign genetic IDs
+      for(i in seq_along(dna_ids)) {
+        dna_genus_unkSpp <- filter(df_s, GEN_abbr==names(dna_ids)[i] &
+                                     !TubeNo %in% dna_ids[[i]]$TubeNo)$TubeNo
+        dna_str_tubes <- filter(dna_ids[[i]], 
+                                grepl("999[0-9][0-9][0-9][0-9]", TubeNo))
+        dna_genus_index <- match(dna_str_tubes$TubeNo, df_s$TubeNo)
+        df_s$SPECIESID[dna_genus_index] <- dna_str_tubes$ID
+        if(names(dna_ids)[i] %in% c("Camp", "Temn", "Tapi")) {
+          # Use morphological IDs for Camp,Temno,Tapi when dnaID is unavailable
+          # Remove only NA species or Genus spp
+          dna_genus_unkSpp <- filter(df_s, TubeNo %in% dna_genus_unkSpp & 
+                                       (is.na(SPECIESID) | 
+                                          SPECIESID==names(dna_ids)[i]))
+        } 
+        # Remove tubes without IDs
+        df_s <- filter(df_s, !TubeNo %in% dna_genus_unkSpp)
+      }
     }
     if(str_type!="all") df_s <- filter(df_s, TypeOfSample==str_type)
     if(clean_spp) df_s <- clean_species_names(df_s)
@@ -113,23 +118,25 @@ load_ant_data <- function(structured=TRUE, public=TRUE,
                     locale=readr::locale(decimal_mark=",")) %>%
       rename(TubeNo=CATALOGUENUMBER, SPECIESID=SPECISID) %>%
       mutate(SampleDate=lubridate::ymd(DATECOLLECTION))
-    # assign genetic IDs
-    for(i in seq_along(dna_ids)) {
-      dna_genus_unkSpp <- filter(df_p, GENUSID==names(dna_ids)[i] &
-                                   !TubeNo %in% dna_ids[[i]]$TubeNo)$TubeNo
-      dna_pub_tubes <- filter(dna_ids[[i]], 
-                              !grepl("999[0-9][0-9][0-9][0-9]", TubeNo))
-      dna_genus_index <- match(dna_pub_tubes$TubeNo, df_p$TubeNo)
-      df_p$SPECIESID[dna_genus_index] <- dna_pub_tubes$ID
-      if(names(dna_ids)[i] %in% c("Camp", "Temn")) {
-        # Use morphological IDs for Camp,Temno when genetic ID is unavailable
-        # Remove only NA species or Genus spp
-        dna_genus_unkSpp <- filter(df_p, TubeNo %in% dna_genus_unkSpp & 
-                                     (is.na(SPECIESID) | 
-                                        SPECIESID==names(dna_ids)[i]))
-      } 
-      # Remove tubes without IDs
-      df_p <- filter(df_p, !TubeNo %in% dna_genus_unkSpp)
+    if(DNA_ID) {
+      # assign genetic IDs
+      for(i in seq_along(dna_ids)) {
+        dna_genus_unkSpp <- filter(df_p, GENUSID==names(dna_ids)[i] &
+                                     !TubeNo %in% dna_ids[[i]]$TubeNo)$TubeNo
+        dna_pub_tubes <- filter(dna_ids[[i]], 
+                                !grepl("999[0-9][0-9][0-9][0-9]", TubeNo))
+        dna_genus_index <- match(dna_pub_tubes$TubeNo, df_p$TubeNo)
+        df_p$SPECIESID[dna_genus_index] <- dna_pub_tubes$ID
+        if(names(dna_ids)[i] %in% c("Camp", "Temn", "Tapi")) {
+          # Use morphological IDs for Camp,Temno,Tapi when dnaID is unavailable
+          # Remove only NA species or Genus spp
+          dna_genus_unkSpp <- filter(df_p, TubeNo %in% dna_genus_unkSpp & 
+                                       (is.na(SPECIESID) | 
+                                          SPECIESID==names(dna_ids)[i]))
+        } 
+        # Remove tubes without IDs
+        df_p <- filter(df_p, !TubeNo %in% dna_genus_unkSpp)
+      }
     }
     if(full_pub) {
       df_p <- rbind(df_p %>% filter(is.na(LATITUDE)) %>%
