@@ -63,18 +63,18 @@ clean_species_names <- function(ant.df) {
 #'   in clean_spp_names()
 #' @param full_pb FALSE; include all original columns in .$pub
 #' @param DNA_ID TRUE; update species names with genetic IDs?
+#' @param DNA_dir
 #' 
 #' @return list with each dataframe and a (simplified) combined dataframe
 
 load_ant_data <- function(structured=TRUE, public=TRUE, 
                           str_type="all", clean_spp=FALSE, full_pub=FALSE,
-                          DNA_ID=TRUE) {
+                          DNA_ID=TRUE, DNA_dir=NULL) {
   library(tidyverse); library(sf); library(googlesheets)
   # load genetic IDs 
   if(DNA_ID) {
-    dna_dir <- "~/Documents/unil/opfo_main/1_opfo/data/DNA_ID_clean/"
-    dna_f <- setNames(dir(dna_dir, full.names=T), 
-                      str_split_fixed(dir(dna_dir), "_", 2)[,1])
+    dna_f <- setNames(dir(DNA_dir, full.names=T), 
+                      str_split_fixed(dir(DNA_dir), "_", 2)[,1])
     dna_ids <- map(dna_f, read_csv)
   }
   
