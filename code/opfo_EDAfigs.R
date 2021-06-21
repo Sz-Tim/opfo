@@ -42,7 +42,7 @@ dem <- raster::raster("../2_gis/data/VD_21781/dem_VD_21781.tif") %>%
 dem_bin <- table(dem@data@values %/% 100 * 100)
 slope <- raster::raster("../2_gis/data/VD_21781/slope_VD_21781.tif") %>%
   raster::mask(., st_zm(VD_raw))
-grd_W <- raster::raster(ext=VD_ext, crs=st_crs(VD), resolution=1000) %>%
+grd_W <- raster::raster(ext=VD_ext, crs=st_crs(VD)$proj4string, resolution=1000) %>%
   raster::rasterize(VD_ext, .) %>% 
   raster::rasterToPolygons(., n=4)
 grd_W@data$layer <- 1:raster::ncell(grd_W)
@@ -63,7 +63,7 @@ plot.sf <- st_read("../2_gis/data/opfo/opfo_soil_25per.shp") %>%
   left_join(., select(plot.i, Plot_id, BDM, Categorie, TypeOfOpen), 
             by="Plot_id") %>%
   left_join(., ant$str %>% st_set_geometry(NULL) %>%
-              select(c(3, 25, 29:47, 49:63)) %>% 
+              select(c(3, 26, 30:48, 50:64)) %>% 
               group_by(Plot_id) %>% filter(row_number()==1), by="Plot_id") %>%
   filter(!is.na(mnt25))
 site.sf <- full_join(agg_str_site_data(), 
@@ -249,8 +249,8 @@ ggsave("eda/site_region_elDist.pdf", width=2.75, height=5)
 plot.sf %>% group_by(BDM, region) %>% st_set_geometry(NULL) %>%
   summarise(el_mn=mean(mnt25), el_med=median(mnt25), 
             el_min=min(mnt25), el_max=max(mnt25)) %>%
-  mutate(region=forcats::lvls_reorder(region, 3:1)) %>%
-  arrange(region, el_mn) %>% ungroup %>%
+  ungroup %>% mutate(region=forcats::lvls_reorder(region, 3:1)) %>%
+  arrange(region, el_mn) %>% 
   mutate(sortOrder=row_number()) %>%
   ggplot(aes(sortOrder, y=el_mn, ymin=el_min, ymax=el_max, colour=region)) + 
   geom_linerange() + fonts +
@@ -476,7 +476,7 @@ antSum_site <- ant$str %>% st_set_geometry(NULL) %>%
             nOcc=n_distinct(Plot_id), pOcc=nOcc/first(nPlot)) %>%
   left_join(site.sf, ., by="BDM")
 
-ggplot(antSum_site, aes(fill=nTubes)) + 
+ggplot(antSum_site, aes(fill=mnTubes)) + 
   geom_sf(data=VD, fill="gray85", colour="gray40") +
   geom_sf() + scale_fill_viridis() +
   theme(panel.grid=element_blank(), axis.text=element_blank(),
@@ -505,7 +505,7 @@ antSum_plot <- ant$str %>% st_set_geometry(NULL) %>%
   mutate(BDM=factor(BDM))
 
 
-ggplot(antSum_site, aes(el, nSp)) + geom_point() + stat_smooth()
+ggplot(antSum_site, aes(el, mnSp)) + geom_point() + stat_smooth()
 
 
 # Site-level patterns
@@ -573,7 +573,7 @@ summary(glm(nGen ~ mnt25, data=antSum_plot, family="poisson"))
 ant.elBin <- ant$str %>% st_set_geometry(NULL) %>% 
   filter(TypeOfSample=="soil") %>%
   select(Plot_id, TubeNo, SPECIESID, GENUSID) %>%
-  full_join(plot.sf, ., by="Plot_id") %>%
+  full_join(plot.sf %>% st_set_geometry(NULL), ., by="Plot_id") %>%
   mutate(elBin=mnt25 %/% 100 * 100) %>%
   group_by(Plot_id, elBin) %>%
   summarise(nSp_plot=n_distinct(SPECIESID, na.rm=T),
@@ -1032,7 +1032,7 @@ site.dist.el <- dist(cbind(site.sf$el, site.sf$el))
 
 ##--- community matrices
 comm.site <- ant$str %>% filter(TypeOfSample=="soil") %>% 
-  filter(mnt25 < 1000) %>%
+  # filter(mnt25 < 1000) %>%
   st_set_geometry(NULL) %>%
   group_by(BDM, SPECIESID) %>% summarise(nObs=n()) %>%
   ungroup %>% spread(SPECIESID, nObs)
@@ -1182,7 +1182,7 @@ nmds.site.df <- nmds.site.df %>%
 ##--- plots
 # Sites
 ggplot(nmds.site.df, aes(x=MDS1, y=MDS2, colour=region, fill=region)) + fonts +
-  ggConvexHull::geom_convexhull(alpha=0.2, size=0.25) + geom_point() + 
+  geom_point() + #ggConvexHull::geom_convexhull(alpha=0.2, size=0.25) + 
   geom_point(data=nmds.site.df %>% group_by(region) %>% 
                summarise(MDS1=mean(MDS1), MDS2=mean(MDS2)), shape=1, size=4) +
   scale_colour_manual(values=col_region) + scale_fill_manual(values=col_region) 
@@ -1194,13 +1194,13 @@ full_join(select(site.sf, BDM), nmds.site.df, by="BDM") %>%
   scale_colour_manual(values=col_region) + scale_fill_manual(values=col_region)
 ggsave("eda/NMDS_site_region_MAP.pdf", width=5, height=5)
 ggplot(nmds.site.df, aes(x=MDS1, y=MDS2, colour=env_kmns, fill=env_kmns)) + fonts +
-  ggConvexHull::geom_convexhull(alpha=0.2, size=0.25) + geom_point() + 
+  geom_point() + #ggConvexHull::geom_convexhull(alpha=0.2, size=0.25) + 
   geom_point(data=nmds.site.df %>% group_by(env_kmns) %>% 
                summarise(MDS1=mean(MDS1), MDS2=mean(MDS2)), shape=1, size=4) 
 ggsave("eda/NMDS_site_env.pdf", width=5, height=3.5)
 
 ggplot(nmds.site.df, aes(x=MDS1, y=MDS2, colour=el_cat, fill=el_cat)) + fonts +
-  ggConvexHull::geom_convexhull(alpha=0.2, size=0.25) + geom_point() + 
+  geom_point() + #ggConvexHull::geom_convexhull(alpha=0.2, size=0.25) + 
   geom_point(data=nmds.site.df %>% group_by(el_cat) %>% 
                summarise(MDS1=mean(MDS1), MDS2=mean(MDS2)), shape=1, size=4) +
   scale_colour_manual("", values=col_mtn) + 
@@ -1214,7 +1214,7 @@ full_join(select(site.sf, BDM), nmds.site.df, by="BDM") %>%
 ggsave("eda/NMDS_site_mtn_MAP.pdf", width=5, height=5)
 
 ggplot(nmds.site.df, aes(x=MDS1, y=MDS2, colour=kmns_2, fill=kmns_2)) + fonts +
-  ggConvexHull::geom_convexhull(alpha=0.2, size=0.25) + geom_point() + 
+  geom_point() + #ggConvexHull::geom_convexhull(alpha=0.2, size=0.25) + 
   geom_point(data=nmds.site.df %>% group_by(kmns_2) %>% 
                summarise(MDS1=mean(MDS1), MDS2=mean(MDS2)), shape=1, size=4) +
   scale_colour_manual("Clusters", values=setNames(col_mtn, 1:2)) + 
@@ -1229,8 +1229,8 @@ full_join(select(site.sf, BDM), nmds.site.df, by="BDM") %>%
 ggsave("eda/NMDS_site_kmeans_MAP.pdf", width=5, height=5)
 
 # Plots
-ggplot(nmds.plot.df, aes(x=MDS1, y=MDS2, colour=region, fill=region)) + 
-  ggConvexHull::geom_convexhull(alpha=0.2, size=0.25) + geom_point() + 
+ggplot(nmds.plot.df, aes(x=MDS1, y=MDS2, colour=region, fill=region)) + xlim(NA,2) +
+  geom_point() + #ggConvexHull::geom_convexhull(alpha=0.2, size=0.25) + 
   geom_point(data=nmds.plot.df %>% group_by(region) %>%
                summarise(MDS1=mean(MDS1, na.rm=T), MDS2=mean(MDS2, na.rm=T)),
              shape=1, size=4) +
@@ -1238,16 +1238,16 @@ ggplot(nmds.plot.df, aes(x=MDS1, y=MDS2, colour=region, fill=region)) +
   scale_fill_manual(values=col_region) +
   theme(panel.grid=element_blank())
 ggsave("eda/NMDS_plot_region.pdf", width=5, height=3.5)
-ggplot(nmds.plot.df, aes(x=MDS1, y=MDS2, colour=el_cat, fill=el_cat)) + 
-  ggConvexHull::geom_convexhull(alpha=0.2, size=0.25) + geom_point() + 
+ggplot(nmds.plot.df, aes(x=MDS1, y=MDS2, colour=el_cat, fill=el_cat)) + xlim(NA,2) +
+  geom_point() + #ggConvexHull::geom_convexhull(alpha=0.2, size=0.25) + 
   geom_point(data=nmds.plot.df %>% group_by(el_cat) %>% 
                summarise(MDS1=mean(MDS1, na.rm=T), MDS2=mean(MDS2, na.rm=T)), 
              shape=1, size=4) +
   scale_colour_manual(values=col_mtn) + scale_fill_manual(values=col_mtn) +
   theme(panel.grid=element_blank())
 ggsave("eda/NMDS_plot_mtn.pdf", width=5, height=3.5)
-ggplot(nmds.plot.df, aes(x=MDS1, y=MDS2, colour=kmns_2, fill=kmns_2)) + 
-  ggConvexHull::geom_convexhull(alpha=0.2, size=0.25) + geom_point() + 
+ggplot(nmds.plot.df, aes(x=MDS1, y=MDS2, colour=kmns_2, fill=kmns_2)) + xlim(NA,2) +
+  geom_point() + #ggConvexHull::geom_convexhull(alpha=0.2, size=0.25) + 
   geom_point(data=nmds.plot.df %>% group_by(kmns_2) %>% 
                summarise(MDS1=mean(MDS1, na.rm=T), MDS2=mean(MDS2, na.rm=T)), 
              shape=1, size=4) +
@@ -1261,8 +1261,8 @@ nmds.plot.mns <- nmds.plot.df %>% group_by(CatFact) %>%
             MDS2_se=MDS2_sd/sqrt(sum(!is.na(MDS2))),
             MDS1=mean(MDS1, na.rm=T), MDS2=mean(MDS2, na.rm=T))
 ggplot(nmds.plot.df, aes(x=MDS1, y=MDS2, colour=CatFact)) + 
-  ggConvexHull::geom_convexhull(fill=NA, size=0.25) +
-  geom_point(alpha=0.7) + 
+  # ggConvexHull::geom_convexhull(fill=NA, size=0.25) +
+  geom_point(alpha=0.7) + xlim(NA,2) +
   geom_point(data=nmds.plot.mns, size=4) +
   geom_segment(data=nmds.plot.mns, size=0.75,
                aes(x=MDS1, xend=MDS1, y=MDS2-2*MDS2_se, yend=MDS2+2*MDS2_se)) +
@@ -1361,8 +1361,8 @@ beta.df <- tibble(BDM=rep(attr(beta.site$beta.bray, "Label"), each=44),
 beta.bin <- append(beta.pair.abund(comm.bin.mx), 
                    beta.pair((comm.bin.mx>0)*1, index.family="jaccard"))
 
-beta.bin.df <- tibble(elBin=rep(attr(beta.bin$beta.bray, "Label"), each=19),
-                      elBin2=rep(attr(beta.bin$beta.bray, "Label"), times=19)) %>%
+beta.bin.df <- tibble(elBin=rep(attr(beta.bin$beta.bray, "Label"), each=18),
+                      elBin2=rep(attr(beta.bin$beta.bray, "Label"), times=18)) %>%
   cbind(map_df(beta.bin, ~c(as.matrix(.)))) %>%
   mutate(elBin=as.numeric(elBin), elBin2=as.numeric(elBin2)) %>%
   filter(elBin != elBin2)
