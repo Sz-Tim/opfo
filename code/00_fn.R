@@ -70,7 +70,7 @@ clean_species_names <- function(ant.df) {
 load_ant_data <- function(structured=TRUE, public=TRUE, 
                           str_type="all", clean_spp=FALSE, full_pub=FALSE,
                           DNA_ID=TRUE, DNA_dir=NULL) {
-  library(tidyverse); library(sf); library(googlesheets)
+  library(tidyverse); library(sf); library(googlesheets4)
   # load genetic IDs 
   if(DNA_ID) {
     dna_f <- setNames(dir(DNA_dir, full.names=T), 
@@ -80,8 +80,15 @@ load_ant_data <- function(structured=TRUE, public=TRUE,
   
   # load structured samples
   if(structured) {
-    df_s <- gs_read(ss=gs_title("Scientific Ant Inventory VD"), ws="Transfer", 
-                    col_types=cols(PLOT=col_character())) %>%
+    df_s <- read_sheet(ss=googledrive::as_id("https://docs.google.com/spreadsheets/d/15bn0aoYpxo1Tvu6BRSc8ruLDmRM4Z6IJAVksdCos940/edit?usp=sharing"), 
+                       sheet="Transfer", 
+                       col_types=paste0("iiccciiiii", # columns in sets of 10
+                                        "iiccccDccc",
+                                        "cccccddddd",
+                                        "cddddddddd",
+                                        "dddddddddd",
+                                        "dddddddDdd",
+                                        "dddddd")) %>%
       filter(!is.na(lon)) %>% 
       rename(TubeNo=CATALOGUENUMBER, Plot_id=PLOT) %>%
       mutate(Plot_id=as.character(Plot_id),
@@ -114,8 +121,12 @@ load_ant_data <- function(structured=TRUE, public=TRUE,
   }
   # load public inventory samples
   if(public) {
-    df_p <- gs_read(ss=gs_url("https://docs.google.com/spreadsheets/d/19mDCH-A7mmNwelXypK7ixpfcQGzS4x3o7w4MJU8-hJc/edit?usp=sharing"), verbose=F, ws="Samples",
-                    locale=readr::locale(decimal_mark=",")) %>%
+    df_p <- read_sheet(ss=googledrive::as_id("https://docs.google.com/spreadsheets/d/19mDCH-A7mmNwelXypK7ixpfcQGzS4x3o7w4MJU8-hJc/edit?usp=sharing"), 
+                    sheet="Samples",
+                    col_types=paste0("icccDcdddd",
+                                     "ciccccDiii",
+                                     "iicccDlllc",
+                                     "llllccD")) %>%
       rename(TubeNo=CATALOGUENUMBER, SPECIESID=SPECISID) %>%
       mutate(SampleDate=lubridate::ymd(DATECOLLECTION))
     if(DNA_ID) {
