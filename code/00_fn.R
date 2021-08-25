@@ -83,11 +83,11 @@ load_ant_data <- function(structured=TRUE, public=TRUE,
     df_s <- read_sheet(ss=googledrive::as_id("https://docs.google.com/spreadsheets/d/15bn0aoYpxo1Tvu6BRSc8ruLDmRM4Z6IJAVksdCos940/edit?usp=sharing"), 
                        sheet="Transfer", 
                        col_types=paste0("iiccciiiii", # columns in sets of 10
-                                        "iiccccDccc",
+                                        "iicccccccc",
                                         "cccccddddd",
                                         "cddddddddd",
                                         "dddddddddd",
-                                        "dddddddDdd",
+                                        "dddddddcdd",
                                         "dddddd")) %>%
       filter(!is.na(lon)) %>% 
       rename(TubeNo=CATALOGUENUMBER, Plot_id=PLOT) %>%
@@ -123,7 +123,7 @@ load_ant_data <- function(structured=TRUE, public=TRUE,
   if(public) {
     df_p <- read_sheet(ss=googledrive::as_id("https://docs.google.com/spreadsheets/d/19mDCH-A7mmNwelXypK7ixpfcQGzS4x3o7w4MJU8-hJc/edit?usp=sharing"), 
                     sheet="Samples",
-                    col_types=paste0("icccDcdddd",
+                    col_types=paste0("icccccdddd",
                                      "ciccccDiii",
                                      "iicccDlllc",
                                      "llllccD")) %>%
